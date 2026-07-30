@@ -1,0 +1,14 @@
+# Local brainstorming companion
+.superpowers/
+
+# MATLAB autosave files
+*.asv
+
+# Raw experiment captures (kept on disk, not versioned)
+Experiment/实验数据/
+
+# Generated length-optimization outputs
+Plot/*.fig
+Plot/*optimization*.mat
+Plot/normalized_score_*.mat
+Kinematics/*optimization*.mat
