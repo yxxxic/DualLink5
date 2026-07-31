@@ -23,8 +23,11 @@ includeOrientation = logical(includeOrientation);
 if ~isstruct(assembly) || ~isscalar(assembly) || ...
         ~isfield(assembly, 'metadata') || ...
         ~isstruct(assembly.metadata) || ...
+        ~isscalar(assembly.metadata) || ...
         ~isfield(assembly.metadata, 'mode') || ...
-        ~isfield(assembly, 'quality') || ~isstruct(assembly.quality)
+        ~isfield(assembly.metadata, 'units') || ...
+        ~isfield(assembly, 'quality') || ...
+        ~isstruct(assembly.quality) || ~isscalar(assembly.quality)
     invalidAssemblyPose();
 end
 try
@@ -38,9 +41,9 @@ if ~isscalar(mode) || ismissing(mode) || ...
 end
 
 if mode == "diagnostic"
-    if ~isfield(assembly.quality, 'diagnosticAvailable') || ...
-            ~isscalar(assembly.quality.diagnosticAvailable) || ...
-            ~logical(assembly.quality.diagnosticAvailable)
+    diagnosticAvailable = readAssemblyFlag( ...
+        assembly.quality, 'diagnosticAvailable');
+    if ~diagnosticAvailable
         error('duallink5:kinematics:InvalidAssemblyPose', ...
             'Diagnostic side poses are unavailable.');
     end
@@ -53,21 +56,32 @@ if mode == "diagnostic"
             ~ismember(side, ["lower", "upper"])
         ambiguousDiagnosticTask();
     end
-    shared = assembly.sharedLinkEstimates.(char(side));
-    if side == "lower"
-        pointG = assembly.lower.points.G;
-    else
-        pointG = assembly.upper.points.G;
+    if ~isfield(assembly, 'sharedLinkEstimates') || ...
+            ~isstruct(assembly.sharedLinkEstimates) || ...
+            ~isscalar(assembly.sharedLinkEstimates) || ...
+            ~isfield(assembly.sharedLinkEstimates, char(side))
+        invalidAssemblyPose();
     end
+    shared = assembly.sharedLinkEstimates.(char(side));
+    if ~isTaskFrame(shared)
+        invalidAssemblyPose();
+    end
+    shared.center = double(shared.center(:));
+    shared.orientation = double(shared.orientation);
+    pointG = readPointG(assembly, side);
 else
-    if ~isfield(assembly.quality, 'valid') || ...
-            ~isscalar(assembly.quality.valid) || ...
-            ~logical(assembly.quality.valid) || ...
+    valid = readAssemblyFlag(assembly.quality, 'valid');
+    if ~valid || ...
             ~isfield(assembly, 'sharedLink')
         invalidAssemblyPose();
     end
     shared = assembly.sharedLink;
-    pointG = assembly.lower.points.G;
+    if ~isTaskFrame(shared)
+        invalidAssemblyPose();
+    end
+    shared.center = double(shared.center(:));
+    shared.orientation = double(shared.orientation);
+    pointG = readPointG(assembly, "lower");
 end
 
 orientationOffset = getField(taskSpec, 'orientationOffset', 0);
@@ -76,6 +90,7 @@ if ~(isscalar(orientationOffset) && isnumeric(orientationOffset) && ...
     invalidTaskSpec( ...
         'orientationOffset must be a finite scalar in radians.');
 end
+orientationOffset = double(orientationOffset);
 
 if kind == "sharedCenter"
     position = shared.center;
@@ -90,7 +105,7 @@ elseif ismember(kind, ["sharedOffset", "marker"])
             any(~isfinite(offset), 'all')
         invalidTaskSpec('%s requires a finite 2-vector offset.', kind);
     end
-    offset = offset(:);
+    offset = double(offset(:));
     angle = shared.orientation;
     rotation = [cos(angle), -sin(angle); sin(angle), cos(angle)];
     position = shared.center + rotation * offset;
@@ -119,6 +134,50 @@ if isfield(input, name)
 else
     value = defaultValue;
 end
+end
+
+function value = readAssemblyFlag(quality, name)
+if ~isfield(quality, name)
+    invalidAssemblyPose();
+end
+rawValue = quality.(name);
+validFlag = isscalar(rawValue) && ...
+    (islogical(rawValue) || ...
+    (isnumeric(rawValue) && isreal(rawValue) && ...
+    isfinite(rawValue) && ismember(double(rawValue), [0, 1])));
+if ~validFlag
+    invalidAssemblyPose();
+end
+value = logical(rawValue);
+end
+
+function valid = isTaskFrame(shared)
+valid = isstruct(shared) && isscalar(shared) && ...
+    isfield(shared, 'center') && ...
+    isnumeric(shared.center) && isreal(shared.center) && ...
+    numel(shared.center) == 2 && all(isfinite(shared.center), 'all') && ...
+    isfield(shared, 'orientation') && ...
+    isnumeric(shared.orientation) && isreal(shared.orientation) && ...
+    isscalar(shared.orientation) && isfinite(shared.orientation);
+end
+
+function pointG = readPointG(assembly, side)
+sideName = char(side);
+if ~isfield(assembly, sideName) || ...
+        ~isstruct(assembly.(sideName)) || ...
+        ~isscalar(assembly.(sideName)) || ...
+        ~isfield(assembly.(sideName), 'points') || ...
+        ~isstruct(assembly.(sideName).points) || ...
+        ~isscalar(assembly.(sideName).points) || ...
+        ~isfield(assembly.(sideName).points, 'G')
+    invalidAssemblyPose();
+end
+pointG = assembly.(sideName).points.G;
+if ~isnumeric(pointG) || ~isreal(pointG) || numel(pointG) ~= 2 || ...
+        any(~isfinite(pointG), 'all')
+    invalidAssemblyPose();
+end
+pointG = double(pointG(:));
 end
 
 function invalidTaskSpec(message, varargin)
