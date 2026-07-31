@@ -5,7 +5,8 @@ run(fullfile(projectRoot, 'startup.m'));
 % data = readtable('record_20260417_153713.csv');
 % data = readtable('record_20260417_153738.csv');
 % data = readtable('record_20260417_153904.csv');
-data = readtable('record_20260417_153928.csv');
+dataFile = fullfile(experimentDir, 'record_20260417_153928.csv');
+data = readtable(dataFile);
 
 % 将时间戳转换为 datetime 类型
 time = datetime(data.timestamp,'InputFormat','yyyy-MM-dd HH:mm:ss.SSSSSS');

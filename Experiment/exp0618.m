@@ -22,7 +22,8 @@ angle_files = sort(all_names(~record_mask));
 record_files = sort(all_names(record_mask));
 
 if numel(angle_files) ~= numel(record_files)
-    error('Angle file count (%d) does not match record file count (%d).', ...
+    error('duallink5exp:ExperimentInventoryMismatch', ...
+        'Angle file count (%d) does not match record file count (%d).', ...
         numel(angle_files), numel(record_files));
 end
 
@@ -32,13 +33,14 @@ experiment_titles = ["diameter 40 mm, CCW", "diameter 40 mm, CW", ...
 expected_pairs = numel(experiment_labels);
 
 if numel(angle_files) ~= expected_pairs
-    warning('Expected %d paired experiments, found %d pairs.', ...
+    error('duallink5exp:ExperimentInventoryMismatch', ...
+        'Expected exactly %d paired experiments, found %d pairs.', ...
         expected_pairs, numel(angle_files));
 end
 
 fprintf('Found %d paired 0618 experiment files.\n', numel(angle_files));
 
-for i = 1:numel(angle_files)
+for i = 1:expected_pairs
     angle_file = fullfile(data_dir, angle_files(i));
     record_file = fullfile(data_dir, record_files(i));
 
@@ -144,17 +146,11 @@ function optical_interp = interpolateOpticalToTimes(optical, target_t_abs)
     optical_t = seconds(optical.t_abs - t0);
     target_t = seconds(target_t_abs(:) - t0);
 
-    [optical_t, unique_idx] = unique(optical_t, 'stable');
-    optical_x = optical.x(unique_idx);
-    optical_y = optical.y(unique_idx);
-
-    in_range = target_t >= min(optical_t) & target_t <= max(optical_t);
-
     optical_interp = struct();
-    optical_interp.x = nan(size(target_t));
-    optical_interp.y = nan(size(target_t));
-    optical_interp.x(in_range) = interp1(optical_t, optical_x, target_t(in_range), 'linear');
-    optical_interp.y(in_range) = interp1(optical_t, optical_y, target_t(in_range), 'linear');
+    optical_interp.x = duallink5exp.interpolateTimeSeries( ...
+        optical_t, optical.x, target_t);
+    optical_interp.y = duallink5exp.interpolateTimeSeries( ...
+        optical_t, optical.y, target_t);
 end
 
 function stats = calcTrajectoryError(ref_x, ref_y, test_x, test_y)

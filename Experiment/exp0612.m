@@ -141,17 +141,11 @@ function optical_interp = interpolateOpticalToTimes(optical, target_t_abs)
     optical_t = seconds(optical.t_abs - t0);
     target_t = seconds(target_t_abs(:) - t0);
 
-    [optical_t, unique_idx] = unique(optical_t, 'stable');
-    optical_x = optical.x(unique_idx);
-    optical_y = optical.y(unique_idx);
-
-    in_range = target_t >= min(optical_t) & target_t <= max(optical_t);
-
     optical_interp = struct();
-    optical_interp.x = nan(size(target_t));
-    optical_interp.y = nan(size(target_t));
-    optical_interp.x(in_range) = interp1(optical_t, optical_x, target_t(in_range), 'linear');
-    optical_interp.y(in_range) = interp1(optical_t, optical_y, target_t(in_range), 'linear');
+    optical_interp.x = duallink5exp.interpolateTimeSeries( ...
+        optical_t, optical.x, target_t);
+    optical_interp.y = duallink5exp.interpolateTimeSeries( ...
+        optical_t, optical.y, target_t);
 end
 
 function stats = calcTrajectoryError(ref_x, ref_y, test_x, test_y)
