@@ -1,5 +1,6 @@
 # Local brainstorming companion
 .superpowers/
+.worktrees/
 
 # MATLAB autosave files
 *.asv
