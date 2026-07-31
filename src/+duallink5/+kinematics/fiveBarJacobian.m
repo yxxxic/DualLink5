@@ -121,9 +121,10 @@ result.statusCode = "NEAR_SINGULAR";
 end
 
 function q = normalizeJointVector(q)
-if ~(isnumeric(q) && isreal(q) && numel(q) == 2)
+if ~(isnumeric(q) && isreal(q) && numel(q) == 2 && ...
+        all(isfinite(q), 'all'))
     error('duallink5:kinematics:InvalidJointVector', ...
-        'q must contain numeric real [theta, phi].');
+        'q must contain finite numeric real [theta, phi].');
 end
 q = double(q(:).');
 end
