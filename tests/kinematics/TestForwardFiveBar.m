@@ -1,0 +1,117 @@
+classdef TestForwardFiveBar < matlab.unittest.TestCase
+    properties
+        DefaultGeometry
+    end
+
+    methods (TestMethodSetup)
+        function configure(testCase)
+            testDir = fileparts(mfilename('fullpath'));
+            projectRoot = fileparts(fileparts(testDir));
+            run(fullfile(projectRoot, 'startup.m'));
+            testCase.DefaultGeometry = duallink5.model.defaultGeometry();
+        end
+    end
+
+    methods (Test)
+        function matchesVerifiedLegacyPoseInSI(testCase)
+            q = deg2rad([85, 52.93]);
+
+            pose = duallink5.kinematics.forwardFiveBar( ...
+                q, testCase.DefaultGeometry);
+
+            testCase.verifyTrue(pose.quality.valid);
+            testCase.verifyEqual(pose.quality.branchId, int8(-1));
+            testCase.verifyEqual(pose.points.C, ...
+                [42.627001951220; 49.469778823499] * 1e-3, ...
+                'AbsTol', 1e-11);
+            testCase.verifyEqual(pose.points.D, ...
+                [82.631791324193; 105.689142277954] * 1e-3, ...
+                'AbsTol', 1e-11);
+            testCase.verifyEqual(pose.points.E, ...
+                [6.972459419813; 79.695575847340] * 1e-3, ...
+                'AbsTol', 1e-11);
+            testCase.verifyEqual(pose.points.G, ...
+                [9.604250744006; 185.384718125293] * 1e-3, ...
+                'AbsTol', 1e-11);
+        end
+
+        function allLinkAndParallelDistancesClose(testCase)
+            g = testCase.DefaultGeometry;
+            q = deg2rad([85, 52.93]);
+            pose = duallink5.kinematics.forwardFiveBar(q, g);
+            p = pose.points;
+
+            actualLinks = [norm(p.E - p.A), norm(p.C - p.B), ...
+                norm(p.D - p.C), norm(p.D - p.E), norm(p.B - p.A)];
+            expectedLinks = [g.links.link1, g.links.link2, ...
+                g.links.link3, g.links.link4, g.links.link5];
+            testCase.verifyEqual(actualLinks, expectedLinks, ...
+                'AbsTol', 1e-10);
+
+            actualParallel = [norm(p.Palpha1 - p.E), ...
+                norm(p.Palpha4 - p.Palpha1), ...
+                norm(p.Pbeta2 - p.D), ...
+                norm(p.Pbeta3 - p.Pbeta2)];
+            expectedParallel = [g.parallel.lengths.E_Palpha1, ...
+                g.parallel.lengths.Palpha1_Palpha4, ...
+                g.parallel.lengths.D_Pbeta2, ...
+                g.parallel.lengths.Pbeta2_Pbeta3];
+            testCase.verifyEqual(actualParallel, expectedParallel, ...
+                'AbsTol', 1e-10);
+        end
+
+        function continuousModeFollowsPreviousBranch(testCase)
+            g = testCase.DefaultGeometry;
+            q = deg2rad([85, 52.93]);
+            previous = duallink5.kinematics.forwardFiveBar(q, g, ...
+                struct('branchId', int8(1), 'collisionProfile', "none"));
+            options = struct( ...
+                'branchMode', "continuous", ...
+                'previousPose', previous, ...
+                'maxContinuityCost', 5e-3, ...
+                'collisionProfile', "none");
+
+            pose = duallink5.kinematics.forwardFiveBar( ...
+                q + deg2rad([0.1, -0.1]), g, options);
+
+            testCase.verifyTrue(pose.quality.valid);
+            testCase.verifyEqual(pose.quality.branchId, int8(1));
+            testCase.verifyLessThan(pose.quality.continuityCost, 5e-3);
+        end
+
+        function excessiveContinuityJumpReturnsStatus(testCase)
+            g = testCase.DefaultGeometry;
+            q = deg2rad([85, 52.93]);
+            previous = duallink5.kinematics.forwardFiveBar(q, g);
+            options = struct( ...
+                'branchMode', "continuous", ...
+                'previousPose', previous, ...
+                'maxContinuityCost', 1e-12);
+
+            pose = duallink5.kinematics.forwardFiveBar( ...
+                q + deg2rad([0.1, -0.1]), g, options);
+
+            testCase.verifyFalse(pose.quality.valid);
+            testCase.verifyEqual( ...
+                pose.quality.statusCode, "BRANCH_DISCONTINUITY");
+        end
+
+        function invalidBranchConfigurationThrows(testCase)
+            q = deg2rad([85, 52.93]);
+            options = struct('branchId', int8(7));
+
+            testCase.verifyError( ...
+                @() duallink5.kinematics.forwardFiveBar( ...
+                    q, testCase.DefaultGeometry, options), ...
+                'duallink5:kinematics:InvalidBranchConfiguration');
+        end
+
+        function nonfiniteInputReturnsStatus(testCase)
+            pose = duallink5.kinematics.forwardFiveBar( ...
+                [NaN, 0.5], testCase.DefaultGeometry);
+
+            testCase.verifyFalse(pose.quality.valid);
+            testCase.verifyEqual(pose.quality.statusCode, "NONFINITE_INPUT");
+        end
+    end
+end
