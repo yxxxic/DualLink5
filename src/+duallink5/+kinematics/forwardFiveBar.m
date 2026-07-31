@@ -7,17 +7,10 @@ if ~isstruct(options) || ~isscalar(options)
         'options must be a scalar struct.');
 end
 geometry = duallink5.model.validateGeometry(geometry);
-try
-    collisionProfile = string(getOption( ...
-        options, 'collisionProfile', "centerline"));
-catch
-    invalidCollisionProfile();
-end
-if ~isscalar(collisionProfile) || ismissing(collisionProfile) || ...
-        ~ismember(collisionProfile, ...
-        ["none", "centerline", "physicalClearance"])
-    invalidCollisionProfile();
-end
+collisionProfile = ...
+    duallink5.validation.validateCollisionConfiguration( ...
+        getOption(options, 'collisionProfile', "centerline"), ...
+        geometry.collision, true);
 if ~(isnumeric(q) && isreal(q) && numel(q) == 2)
     error('duallink5:kinematics:InvalidJointVector', ...
         'q must contain numeric real [theta, phi].');
@@ -158,11 +151,6 @@ if isfield(options, name)
 else
     value = defaultValue;
 end
-end
-
-function invalidCollisionProfile()
-error('duallink5:validation:InvalidCollisionProfile', ...
-    'collisionProfile must be none, centerline, or physicalClearance.');
 end
 
 function pose = invalidPose(statusCode)

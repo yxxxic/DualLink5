@@ -1,5 +1,6 @@
 function pose = assessFiveBarPose(pose, geometry, profile)
-if ~pose.quality.valid
+markedValid = validateFiveBarPose(pose, "assessment");
+if ~markedValid
     return
 end
 if pose.quality.closureResidual > geometry.tolerance.residual
@@ -7,6 +8,8 @@ if pose.quality.closureResidual > geometry.tolerance.residual
     pose.quality.statusCode = "UNREACHABLE_CLOSURE";
     return
 end
+profile = duallink5.validation.validateCollisionConfiguration( ...
+    profile, geometry.collision, true);
 if profile == "none"
     pose.quality.statusCode = "OK";
     return
