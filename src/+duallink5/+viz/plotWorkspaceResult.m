@@ -1,11 +1,18 @@
 function handles = plotWorkspaceResult(samples, result, axesHandle)
-holdState = ishold(axesHandle);
-hold(axesHandle, 'on');
-handles.samples = scatter(axesHandle, samples.x(samples.validMask), ...
-    samples.y(samples.validMask), 8, '.');
-handles.boundary = plot(result.boundaryShape, 'Parent', axesHandle, ...
+if ~(isscalar(axesHandle) && isgraphics(axesHandle, 'axes'))
+    error('duallink5:viz:InvalidGraphicsHandle', ...
+        'axesHandle must be a live scalar axes handle.');
+end
+[validX, validY] = validateSamples(samples);
+[boundaryShape, rectangleInfo] = validateResult(result);
+
+originalNextPlot = axesHandle.NextPlot;
+axesHandle.NextPlot = 'add';
+cleanup = onCleanup( ...
+    @()restoreNextPlot(axesHandle, originalNextPlot));
+handles.samples = scatter(axesHandle, validX, validY, 8, '.');
+handles.boundary = plot(boundaryShape, 'Parent', axesHandle, ...
     'FaceAlpha', 0.08, 'EdgeColor', [0 0.45 0.74]);
-rectangleInfo = result.maxRectangle;
 handles.rectangle = gobjects(0);
 if rectangleInfo.areaCells > 0
     bounds = rectangleInfo.bounds;
@@ -16,7 +23,88 @@ end
 axis(axesHandle, 'equal');
 xlabel(axesHandle, 'x [m]');
 ylabel(axesHandle, 'y [m]');
-if ~holdState
-    hold(axesHandle, 'off');
+clear cleanup
 end
+
+function [validX, validY] = validateSamples(samples)
+requiredFields = {'x', 'y', 'validMask'};
+if ~isstruct(samples) || ~isscalar(samples) || ...
+        ~all(isfield(samples, requiredFields)) || ...
+        ~isnumeric(samples.x) || ~isreal(samples.x) || ...
+        ~ismatrix(samples.x) || ...
+        ~isnumeric(samples.y) || ~isreal(samples.y) || ...
+        ~ismatrix(samples.y) || ...
+        ~isequal(size(samples.x), size(samples.y))
+    invalidWorkspaceInput();
+end
+
+mask = samples.validMask;
+logicalMask = islogical(mask) && ismatrix(mask);
+numericMask = isnumeric(mask) && isreal(mask) && ismatrix(mask) && ...
+    all(isfinite(mask), 'all') && all(mask == 0 | mask == 1, 'all');
+if ~(logicalMask || numericMask) || ...
+        ~isequal(size(mask), size(samples.x))
+    invalidWorkspaceInput();
+end
+mask = logical(mask);
+if any(~isfinite(samples.x(mask)), 'all') || ...
+        any(~isfinite(samples.y(mask)), 'all')
+    invalidWorkspaceInput();
+end
+validX = full(double(samples.x(mask)));
+validY = full(double(samples.y(mask)));
+end
+
+function [boundaryShape, rectangleInfo] = validateResult(result)
+if ~isstruct(result) || ~isscalar(result) || ...
+        ~isfield(result, 'boundaryShape') || ...
+        ~isfield(result, 'maxRectangle') || ...
+        ~isa(result.boundaryShape, 'alphaShape') || ...
+        ~isscalar(result.boundaryShape)
+    invalidWorkspaceInput();
+end
+boundaryShape = result.boundaryShape;
+shapePoints = boundaryShape.Points;
+if ~isnumeric(shapePoints) || ~isreal(shapePoints) || ...
+        size(shapePoints, 1) < 3 || size(shapePoints, 2) ~= 2 || ...
+        any(~isfinite(shapePoints), 'all')
+    invalidWorkspaceInput();
+end
+
+rectangleInfo = result.maxRectangle;
+if ~isstruct(rectangleInfo) || ~isscalar(rectangleInfo) || ...
+        ~isfield(rectangleInfo, 'areaCells')
+    invalidWorkspaceInput();
+end
+areaCells = rectangleInfo.areaCells;
+if ~isnumeric(areaCells) || ~isreal(areaCells) || ...
+        ~isscalar(areaCells) || ~isfinite(areaCells) || ...
+        areaCells < 0 || areaCells ~= fix(areaCells)
+    invalidWorkspaceInput();
+end
+rectangleInfo.areaCells = double(areaCells);
+if rectangleInfo.areaCells > 0
+    if ~isfield(rectangleInfo, 'bounds')
+        invalidWorkspaceInput();
+    end
+    bounds = rectangleInfo.bounds;
+    if ~isnumeric(bounds) || ~isreal(bounds) || ...
+            ~isequal(size(bounds), [1, 4]) || ...
+            any(~isfinite(bounds)) || ...
+            bounds(2) <= bounds(1) || bounds(4) <= bounds(3)
+        invalidWorkspaceInput();
+    end
+    rectangleInfo.bounds = full(double(bounds));
+end
+end
+
+function restoreNextPlot(axesHandle, originalNextPlot)
+if isscalar(axesHandle) && isgraphics(axesHandle, 'axes')
+    axesHandle.NextPlot = originalNextPlot;
+end
+end
+
+function invalidWorkspaceInput()
+error('duallink5:viz:InvalidWorkspacePlotInput', ...
+    'samples and result must contain valid two-dimensional workspace data.');
 end

@@ -1,3 +1,8 @@
+plotContinuousTrajectoryExample();
+
+function plotContinuousTrajectoryExample()
+originalPath = path;
+pathCleanup = onCleanup(@()path(originalPath));
 exampleDir = fileparts(mfilename('fullpath'));
 projectRoot = fileparts(exampleDir);
 run(fullfile(projectRoot, 'startup.m'));
@@ -28,10 +33,19 @@ for index = 1:numel(theta)
 end
 
 figureHandle = figure;
-axesHandle = axes(figureHandle);
-plot(axesHandle, trajectory(1, :), trajectory(2, :), ...
-    'LineWidth', 1.5);
-hold(axesHandle, 'on');
-duallink5.viz.plotMechanism( ...
-    previousPose, axesHandle, struct('showLabels', false));
-title(axesHandle, 'Continuous branch trajectory');
+try
+    axesHandle = axes(figureHandle);
+    plot(axesHandle, trajectory(1, :), trajectory(2, :), ...
+        'LineWidth', 1.5);
+    hold(axesHandle, 'on');
+    duallink5.viz.plotMechanism( ...
+        previousPose, axesHandle, struct('showLabels', false));
+    title(axesHandle, 'Continuous branch trajectory');
+catch exception
+    if isgraphics(figureHandle, 'figure')
+        close(figureHandle);
+    end
+    rethrow(exception);
+end
+clear pathCleanup
+end

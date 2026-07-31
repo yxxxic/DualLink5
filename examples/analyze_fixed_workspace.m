@@ -1,3 +1,8 @@
+analyzeFixedWorkspaceExample();
+
+function analyzeFixedWorkspaceExample()
+originalPath = path;
+pathCleanup = onCleanup(@()path(originalPath));
 exampleDir = fileparts(mfilename('fullpath'));
 projectRoot = fileparts(exampleDir);
 run(fullfile(projectRoot, 'startup.m'));
@@ -15,6 +20,15 @@ samples = duallink5.workspace.sampleWorkspace( ...
 result = duallink5.workspace.analyzeWorkspace( ...
     samples, struct('gridSize', [180, 180]));
 figureHandle = figure;
-axesHandle = axes(figureHandle);
-duallink5.viz.plotWorkspaceResult(samples, result, axesHandle);
-title(axesHandle, sprintf('Workspace area %.6f m^2', result.area));
+try
+    axesHandle = axes(figureHandle);
+    duallink5.viz.plotWorkspaceResult(samples, result, axesHandle);
+    title(axesHandle, sprintf('Workspace area %.6f m^2', result.area));
+catch exception
+    if isgraphics(figureHandle, 'figure')
+        close(figureHandle);
+    end
+    rethrow(exception);
+end
+clear pathCleanup
+end
