@@ -43,5 +43,202 @@ classdef TestGeometry < matlab.unittest.TestCase
             testCase.verifyError(@()duallink5.model.validateGeometry(g), ...
                 'duallink5:model:InvalidGeometry');
         end
+
+        function malformedStructCategoriesUseGeometryError(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                42
+                repmat(g, 1, 2)
+                TestGeometry.withoutField(g, {'links'})
+                TestGeometry.withValue(g, {'links'}, 42)
+                TestGeometry.withValue(g, {'links'}, repmat(g.links, 1, 2))
+                TestGeometry.withValue(g, {'parallel', 'lengths'}, 42)
+                TestGeometry.withValue(g, {'parallel', 'direction'}, ...
+                    repmat(g.parallel.direction, 1, 2))
+                TestGeometry.withValue(g, {'assembly'}, 42)
+                TestGeometry.withValue(g, {'tolerance'}, 42)
+                TestGeometry.withValue(g, {'analysis'}, 42)
+                TestGeometry.withValue(g, {'collision'}, 42)
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function invalidScalarValuesUseGeometryError(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withValue(g, {'links', 'link1'}, 0)
+                TestGeometry.withValue(g, {'links', 'link2'}, NaN)
+                TestGeometry.withValue(g, ...
+                    {'parallel', 'lengths', 'E_Palpha1'}, -1)
+                TestGeometry.withValue(g, ...
+                    {'parallel', 'lengths', 'Pbeta2_Pbeta3'}, Inf)
+                TestGeometry.withValue(g, ...
+                    {'parallel', 'direction', 'alphaSide'}, 0)
+                TestGeometry.withValue(g, ...
+                    {'parallel', 'direction', 'betaAlongLink'}, 2)
+                TestGeometry.withValue(g, ...
+                    {'assembly', 'defaultBranch'}, 0)
+                TestGeometry.withValue(g, ...
+                    {'tolerance', 'length'}, 0)
+                TestGeometry.withValue(g, ...
+                    {'tolerance', 'residual'}, Inf)
+                TestGeometry.withValue(g, ...
+                    {'analysis', 'thetaRange'}, [1, 1])
+                TestGeometry.withValue(g, ...
+                    {'analysis', 'phiRange'}, [0; 1])
+                TestGeometry.withValue(g, ...
+                    {'analysis', 'phiRange'}, [0, Inf])
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function invalidCollisionFieldsUseGeometryError(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withValue(g, {'collision', 'radius'}, 42)
+                TestGeometry.withValue(g, {'collision', 'layerOffset'}, 42)
+                TestGeometry.withValue(g, {'collision', 'clearance'}, -1)
+                TestGeometry.withValue(g, {'collision', 'clearance'}, NaN)
+                TestGeometry.withValue(g, ...
+                    {'collision', 'exemptPairs'}, {'A', 'B'})
+                TestGeometry.withValue(g, ...
+                    {'collision', 'exemptPairs'}, strings(2, 1))
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function collisionStructArraysAreRejected(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withValue(g, {'collision', 'radius'}, ...
+                    repmat(struct(), 1, 2))
+                TestGeometry.withValue(g, {'collision', 'layerOffset'}, ...
+                    repmat(struct(), 1, 2))
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function collisionExemptPairsMustBeMatrix(testCase)
+            g = duallink5.model.defaultGeometry();
+            g.collision.exemptPairs = strings(1, 2, 2);
+
+            testCase.verifyError( ...
+                @() duallink5.model.validateGeometry(g), ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function invalidUnitsUseUnitError(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withoutField(g, {'units'})
+                TestGeometry.withValue(g, {'units'}, 42)
+                TestGeometry.withValue(g, {'units'}, repmat(g.units, 1, 2))
+                TestGeometry.withoutField(g, {'units', 'length'})
+                TestGeometry.withValue(g, {'units', 'length'}, struct())
+                TestGeometry.withValue(g, ...
+                    {'units', 'length'}, ["m", "m"])
+                TestGeometry.withValue(g, {'units', 'angle'}, "deg")
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidUnits');
+        end
+
+        function invalidMetadataUsesGeometryError(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withoutField(g, {'version'})
+                TestGeometry.withValue(g, {'version'}, "")
+                TestGeometry.withValue(g, {'version'}, ["1", "2"])
+                TestGeometry.withValue(g, {'version'}, struct())
+                TestGeometry.withoutField(g, {'convention'})
+                TestGeometry.withValue(g, {'convention'}, "")
+                TestGeometry.withValue(g, {'convention'}, struct())
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function scalarConvertibleMetadataIsAccepted(testCase)
+            g = duallink5.model.defaultGeometry();
+            g.version = 42;
+            g.convention = true;
+
+            actual = duallink5.model.validateGeometry(g);
+
+            testCase.verifyEqual(actual.version, 42);
+            testCase.verifyEqual(actual.convention, true);
+        end
+
+        function startupPreservesCallerVariables(testCase)
+            testDir = fileparts(mfilename('fullpath'));
+            startupFile = fullfile( ...
+                fileparts(fileparts(testDir)), 'startup.m');
+            projectRoot = "caller-project-root";
+            sourceDir = "caller-source-dir";
+            pathEntries = "caller-path-entries";
+
+            run(startupFile);
+
+            testCase.verifyEqual(projectRoot, "caller-project-root");
+            testCase.verifyEqual(sourceDir, "caller-source-dir");
+            testCase.verifyEqual(pathEntries, "caller-path-entries");
+        end
+
+        function startupIsIdempotent(testCase)
+            testDir = fileparts(mfilename('fullpath'));
+            startupFile = fullfile( ...
+                fileparts(fileparts(testDir)), 'startup.m');
+            originalPath = path;
+
+            run(startupFile);
+            run(startupFile);
+
+            testCase.verifyEqual(path, originalPath);
+        end
+    end
+
+    methods (Static, Access=private)
+        function verifyErrors(testCase, cases, errorId)
+            for index = 1:numel(cases)
+                value = cases{index};
+                testCase.verifyError( ...
+                    @() duallink5.model.validateGeometry(value), errorId);
+            end
+        end
+
+        function result = withValue(result, fieldPath, replacement)
+            fieldName = fieldPath{1};
+            if isscalar(fieldPath)
+                result.(fieldName) = replacement;
+                return
+            end
+
+            child = result.(fieldName);
+            child = TestGeometry.withValue( ...
+                child, fieldPath(2:end), replacement);
+            result.(fieldName) = child;
+        end
+
+        function result = withoutField(result, fieldPath)
+            fieldName = fieldPath{1};
+            if isscalar(fieldPath)
+                result = rmfield(result, fieldName);
+                return
+            end
+
+            child = result.(fieldName);
+            child = TestGeometry.withoutField(child, fieldPath(2:end));
+            result.(fieldName) = child;
+        end
     end
 end
