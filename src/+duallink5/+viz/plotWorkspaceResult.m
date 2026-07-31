@@ -5,6 +5,9 @@ if ~(isscalar(axesHandle) && isgraphics(axesHandle, 'axes'))
 end
 [validX, validY] = validateSamples(samples);
 [boundaryShape, rectangleInfo] = validateResult(result);
+millimetresPerMetre = 1e3;
+validX = millimetresPerMetre * validX;
+validY = millimetresPerMetre * validY;
 
 originalNextPlot = axesHandle.NextPlot;
 axesHandle.NextPlot = 'add';
@@ -13,16 +16,22 @@ cleanup = onCleanup( ...
 handles.samples = scatter(axesHandle, validX, validY, 8, '.');
 handles.boundary = plot(boundaryShape, 'Parent', axesHandle, ...
     'FaceAlpha', 0.08, 'EdgeColor', [0 0.45 0.74]);
+for index = 1:numel(handles.boundary)
+    handles.boundary(index).XData = ...
+        millimetresPerMetre * handles.boundary(index).XData;
+    handles.boundary(index).YData = ...
+        millimetresPerMetre * handles.boundary(index).YData;
+end
 handles.rectangle = gobjects(0);
 if rectangleInfo.areaCells > 0
-    bounds = rectangleInfo.bounds;
+    bounds = millimetresPerMetre * rectangleInfo.bounds;
     handles.rectangle = rectangle(axesHandle, 'Position', ...
         [bounds(1), bounds(3), bounds(2) - bounds(1), ...
         bounds(4) - bounds(3)], 'EdgeColor', 'r', 'LineWidth', 2);
 end
 axis(axesHandle, 'equal');
-xlabel(axesHandle, 'x [m]');
-ylabel(axesHandle, 'y [m]');
+xlabel(axesHandle, 'x [mm]');
+ylabel(axesHandle, 'y [mm]');
 clear cleanup
 end
 

@@ -8,6 +8,10 @@ if ~(isscalar(axesHandle) && isgraphics(axesHandle, 'axes'))
 end
 [lineWidth, showLabels] = validateOptions(options);
 [lower, upper, sharedCenter] = validateAssembly(assembly);
+millimetresPerMetre = 1e3;
+lower = scalePoints(lower, millimetresPerMetre);
+upper = scalePoints(upper, millimetresPerMetre);
+sharedCenter = millimetresPerMetre * sharedCenter;
 
 originalNextPlot = axesHandle.NextPlot;
 axesHandle.NextPlot = 'add';
@@ -70,8 +74,8 @@ end
 
 axis(axesHandle, 'equal');
 axis(axesHandle, 'padded');
-xlabel(axesHandle, 'x [m]');
-ylabel(axesHandle, 'y [m]');
+xlabel(axesHandle, 'x [mm]');
+ylabel(axesHandle, 'y [mm]');
 clear cleanup
 end
 
@@ -92,6 +96,14 @@ function matrix = pointsMatrix(points, names)
 matrix = zeros(2, numel(names));
 for index = 1:numel(names)
     matrix(:, index) = points.(names{index});
+end
+end
+
+function points = scalePoints(points, scale)
+names = fieldnames(points);
+for index = 1:numel(names)
+    name = names{index};
+    points.(name) = scale * points.(name);
 end
 end
 

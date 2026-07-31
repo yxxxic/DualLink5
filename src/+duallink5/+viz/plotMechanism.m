@@ -8,6 +8,13 @@ if ~(isscalar(axesHandle) && isgraphics(axesHandle, 'axes'))
 end
 [lineWidth, showLabels] = validateOptions(options);
 [p, sharedCenter] = validatePose(pose);
+millimetresPerMetre = 1e3;
+pointNames = fieldnames(p);
+for index = 1:numel(pointNames)
+    name = pointNames{index};
+    p.(name) = millimetresPerMetre * p.(name);
+end
+sharedCenter = millimetresPerMetre * sharedCenter;
 
 originalNextPlot = axesHandle.NextPlot;
 axesHandle.NextPlot = 'add';
@@ -35,8 +42,8 @@ if showLabels
     end
 end
 axis(axesHandle, 'equal');
-xlabel(axesHandle, 'x [m]');
-ylabel(axesHandle, 'y [m]');
+xlabel(axesHandle, 'x [mm]');
+ylabel(axesHandle, 'y [mm]');
 clear cleanup
 end
 

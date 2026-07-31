@@ -1,5 +1,14 @@
 # DualLink5 kinematics conventions
 
+## Units and parameter editing
+
+Edit the default link and parallelogram lengths in
+`src/+duallink5/+model/defaultGeometry.m`. Values are written as
+`80 * mm` for readability and converted immediately to SI metres. The
+kinematics, Jacobians, and experiment interfaces continue to use metres and
+radians internally. Visualization functions display lengths in millimetres
+and workspace areas in square millimetres.
+
 ## Link geometry
 
 | Link | Segment | Length (m) |

@@ -1,16 +1,17 @@
 function geometry = defaultGeometry()
 geometry.version = "1.0.0";
 
-geometry.links.link1 = 80e-3;  % AE
-geometry.links.link2 = 62e-3;  % BC
-geometry.links.link3 = 69e-3;  % CD
-geometry.links.link4 = 80e-3;  % DE
-geometry.links.link5 = 80e-3;  % AB
+mm = 1e-3;
+geometry.links.link1 = 80 * mm;  % AE
+geometry.links.link2 = 62 * mm;  % BC
+geometry.links.link3 = 69 * mm;  % CD
+geometry.links.link4 = 80 * mm;  % DE
+geometry.links.link5 = 80 * mm;  % AB
 
-geometry.parallel.lengths.E_Palpha1 = 30e-3;
-geometry.parallel.lengths.Palpha1_Palpha4 = 60e-3;
-geometry.parallel.lengths.D_Pbeta2 = 30e-3;
-geometry.parallel.lengths.Pbeta2_Pbeta3 = 60e-3;
+geometry.parallel.lengths.E_Palpha1 = 30 * mm;
+geometry.parallel.lengths.Palpha1_Palpha4 = 60 * mm;
+geometry.parallel.lengths.D_Pbeta2 = 30 * mm;
+geometry.parallel.lengths.Pbeta2_Pbeta3 = 60 * mm;
 
 geometry.parallel.direction.alphaAlongLink = -1;
 geometry.parallel.direction.alphaSide = 1;

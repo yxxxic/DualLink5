@@ -23,6 +23,13 @@ classdef TestVisualization < matlab.unittest.TestCase
             testCase.verifyNotEmpty(handles.links);
             testCase.verifyEqual(get(groot,'defaultAxesFontName'),originalFont);
             testCase.verifyTrue(all([handles.links.Parent]==axesHandle));
+            expectedFirstLink = 1e3 * [pose.points.A,pose.points.E];
+            testCase.verifyEqual(handles.links(1).XData, ...
+                expectedFirstLink(1,:),'AbsTol',1e-12);
+            testCase.verifyEqual(handles.links(1).YData, ...
+                expectedFirstLink(2,:),'AbsTol',1e-12);
+            testCase.verifyEqual(axesHandle.XLabel.String,'x [mm]');
+            testCase.verifyEqual(axesHandle.YLabel.String,'y [mm]');
             clear cleanup
         end
 
@@ -62,8 +69,26 @@ classdef TestVisualization < matlab.unittest.TestCase
                 samples,result,axesHandle);
 
             actual = sortrows(scatterCoordinates(handles.samples));
-            expected = sortrows([samples.x(:),samples.y(:)]);
+            expected = 1e3 * sortrows([samples.x(:),samples.y(:)]);
             testCase.verifyEqual(actual,expected);
+            boundaryX = handles.boundary.XData;
+            boundaryY = handles.boundary.YData;
+            testCase.verifyEqual( ...
+                [min(boundaryX,[],'all'),max(boundaryX,[],'all')], ...
+                [0,1000], ...
+                'AbsTol',1e-12);
+            testCase.verifyEqual( ...
+                [min(boundaryY,[],'all'),max(boundaryY,[],'all')], ...
+                [0,1000], ...
+                'AbsTol',1e-12);
+            testCase.verifyNotEmpty(handles.rectangle);
+            bounds = result.maxRectangle.bounds;
+            expectedPosition = 1e3 * [bounds(1),bounds(3), ...
+                bounds(2)-bounds(1),bounds(4)-bounds(3)];
+            testCase.verifyEqual(handles.rectangle.Position, ...
+                expectedPosition,'AbsTol',1e-12);
+            testCase.verifyEqual(axesHandle.XLabel.String,'x [mm]');
+            testCase.verifyEqual(axesHandle.YLabel.String,'y [mm]');
             clear cleanup
         end
 
@@ -252,7 +277,7 @@ classdef TestVisualization < matlab.unittest.TestCase
             verifySegments(testCase,handles.betaLinks, ...
                 assembly.lower.points,betaSegments);
 
-            expectedShared = [assembly.lower.points.E, ...
+            expectedShared = 1e3 * [assembly.lower.points.E, ...
                 assembly.lower.points.D];
             testCase.verifyEqual(handles.sharedLink.XData, ...
                 expectedShared(1,:),'AbsTol',1e-12);
@@ -397,7 +422,7 @@ function verifySegments(testCase,handles,points,segments)
 for index = 1:size(segments,1)
     startPoint = points.(segments{index,1});
     endPoint = points.(segments{index,2});
-    expected = [startPoint,endPoint];
+    expected = 1e3 * [startPoint,endPoint];
     testCase.verifyEqual(handles(index).XData, ...
         expected(1,:),'AbsTol',1e-12);
     testCase.verifyEqual(handles(index).YData, ...

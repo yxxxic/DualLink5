@@ -23,7 +23,8 @@ figureHandle = figure;
 try
     axesHandle = axes(figureHandle);
     duallink5.viz.plotWorkspaceResult(samples, result, axesHandle);
-    title(axesHandle, sprintf('Workspace area %.6f m^2', result.area));
+    title(axesHandle, sprintf( ...
+        'Workspace area %.1f mm^2', 1e6 * result.area));
 catch exception
     if isgraphics(figureHandle, 'figure')
         close(figureHandle);
