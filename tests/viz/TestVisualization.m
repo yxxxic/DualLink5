@@ -212,6 +212,112 @@ classdef TestVisualization < matlab.unittest.TestCase
             clear cleanup
         end
 
+        function assemblyPlotRendersCompleteTopology(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            q.lower = deg2rad([85,52.93]);
+            q.upper = q.lower;
+            assembly = duallink5.kinematics.forwardAssembly(q,geometry);
+            figureHandle = figure('Visible','off');
+            cleanup = onCleanup(@()close(figureHandle));
+            axesHandle = axes(figureHandle);
+
+            handles = duallink5.viz.plotAssembly( ...
+                assembly,axesHandle,struct('showLabels',true));
+
+            testCase.verifyNumElements(handles.lowerLinks,4);
+            testCase.verifyNumElements(handles.upperLinks,4);
+            testCase.verifyNumElements(handles.alphaLinks,4);
+            testCase.verifyNumElements(handles.betaLinks,4);
+            testCase.verifyEqual(handles.sharedLink.LineStyle,'--');
+            allLinks = [handles.lowerLinks;handles.upperLinks; ...
+                handles.sharedLink;handles.alphaLinks;handles.betaLinks];
+            testCase.verifyTrue(all([allLinks.Parent]==axesHandle));
+            lineStyles = string({allLinks.LineStyle});
+            testCase.verifyEqual(sum(lineStyles=="--"),1);
+            testCase.verifyNumElements(handles.labels,17);
+
+            physicalSegments = {'A','B';'A','E';'B','C';'C','D'};
+            alphaSegments = {'Palpha1','Palpha2'; ...
+                'Palpha2','Palpha3';'Palpha3','Palpha4'; ...
+                'Palpha4','Palpha1'};
+            betaSegments = {'Pbeta1','Pbeta2'; ...
+                'Pbeta2','Pbeta3';'Pbeta3','Pbeta4'; ...
+                'Pbeta4','Pbeta1'};
+            verifySegments(testCase,handles.lowerLinks, ...
+                assembly.lower.points,physicalSegments);
+            verifySegments(testCase,handles.upperLinks, ...
+                assembly.upper.points,physicalSegments);
+            verifySegments(testCase,handles.alphaLinks, ...
+                assembly.lower.points,alphaSegments);
+            verifySegments(testCase,handles.betaLinks, ...
+                assembly.lower.points,betaSegments);
+
+            expectedShared = [assembly.lower.points.E, ...
+                assembly.lower.points.D];
+            testCase.verifyEqual(handles.sharedLink.XData, ...
+                expectedShared(1,:),'AbsTol',1e-12);
+            testCase.verifyEqual(handles.sharedLink.YData, ...
+                expectedShared(2,:),'AbsTol',1e-12);
+            clear cleanup
+        end
+
+        function assemblyPlotRestoresExactNextPlot(testCase)
+            assembly = verifiedAssemblyFixture();
+            figureHandle = figure('Visible','off');
+            cleanup = onCleanup(@()close(figureHandle));
+            axesHandle = axes(figureHandle);
+            axesHandle.NextPlot = 'replacechildren';
+
+            duallink5.viz.plotAssembly( ...
+                assembly,axesHandle,struct('showLabels',false));
+
+            testCase.verifyEqual(axesHandle.NextPlot,'replacechildren');
+            clear cleanup
+        end
+
+        function assemblyPlotRejectsInvalidInputs(testCase)
+            assembly = verifiedAssemblyFixture();
+            figureHandle = figure('Visible','off');
+            cleanup = onCleanup(@()close(figureHandle));
+            axesHandle = axes(figureHandle);
+
+            secondAxes = axes(figureHandle);
+            deletedAxes = axes(figureHandle);
+            delete(deletedAxes);
+            invalidHandles = {figureHandle,[axesHandle,secondAxes], ...
+                deletedAxes};
+            for index = 1:numel(invalidHandles)
+                testCase.verifyError( ...
+                    @()duallink5.viz.plotAssembly( ...
+                    assembly,invalidHandles{index},struct()), ...
+                    'duallink5:viz:InvalidGraphicsHandle');
+            end
+
+            invalidOptions = {[],struct('lineWidth',0), ...
+                struct('showLabels',2)};
+            for index = 1:numel(invalidOptions)
+                testCase.verifyError( ...
+                    @()duallink5.viz.plotAssembly( ...
+                    assembly,axesHandle,invalidOptions{index}), ...
+                    'duallink5:viz:InvalidPlotOptions');
+            end
+
+            missingUpper = rmfield(assembly,'upper');
+            invalidQuality = assembly;
+            invalidQuality.quality.valid = false;
+            badParallelPoint = assembly;
+            badParallelPoint.lower.points.Palpha1 = [NaN;0];
+            invalidAssemblies = {missingUpper,invalidQuality, ...
+                badParallelPoint};
+            for index = 1:numel(invalidAssemblies)
+                testCase.verifyError( ...
+                    @()duallink5.viz.plotAssembly( ...
+                    invalidAssemblies{index},axesHandle,struct()), ...
+                    'duallink5:viz:InvalidAssembly');
+            end
+            clear cleanup
+        end
+
         function exporterRejectsInvalidHandlesOptionsAndFiles(testCase)
             figureHandle = figure('Visible','off');
             secondFigure = figure('Visible','off');
@@ -260,6 +366,13 @@ pose = duallink5.kinematics.forwardFiveBar( ...
     deg2rad([85,52.93]),geometry);
 end
 
+function assembly = verifiedAssemblyFixture()
+geometry = duallink5.model.defaultGeometry();
+q.lower = deg2rad([85,52.93]);
+q.upper = q.lower;
+assembly = duallink5.kinematics.forwardAssembly(q,geometry);
+end
+
 function [samples,result] = squareWorkspaceFixture()
 samples.x = [0,1;0,1];
 samples.y = [0,0;1,1];
@@ -278,6 +391,18 @@ for index = 1:numel(scatterHandles)
         scatterHandles(index).YData(:)];
 end
 coordinates = vertcat(parts{:});
+end
+
+function verifySegments(testCase,handles,points,segments)
+for index = 1:size(segments,1)
+    startPoint = points.(segments{index,1});
+    endPoint = points.(segments{index,2});
+    expected = [startPoint,endPoint];
+    testCase.verifyEqual(handles(index).XData, ...
+        expected(1,:),'AbsTol',1e-12);
+    testCase.verifyEqual(handles(index).YData, ...
+        expected(2,:),'AbsTol',1e-12);
+end
 end
 
 function deleteIfExists(fileName)
