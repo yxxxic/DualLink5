@@ -7,14 +7,9 @@ if ~isstruct(options) || ~isscalar(options)
     invalidOptions();
 end
 
+[forwardTolerance, jointTolerance, collisionProfile] = ...
+    validateOptions(options, geometry);
 [kind, position] = validateTarget(target);
-forwardTolerance = getOption(options, 'forwardTolerance', 1e-8);
-if ~(isnumeric(forwardTolerance) && isreal(forwardTolerance) && ...
-        isscalar(forwardTolerance) && isfinite(forwardTolerance) && ...
-        forwardTolerance > 0)
-    invalidOptions();
-end
-forwardTolerance = double(forwardTolerance);
 
 links = geometry.links;
 A = [0; 0];
@@ -58,9 +53,10 @@ for eIndex = 1:size(eCandidates, 2)
             continue
         end
 
-        forwardOptions = options;
-        forwardOptions.branchId = branchId;
-        forwardOptions.branchMode = "fixed";
+        forwardOptions = struct( ...
+            'collisionProfile', collisionProfile, ...
+            'branchId', branchId, ...
+            'branchMode', "fixed");
         pose = duallink5.kinematics.forwardFiveBar( ...
             [theta, phi], geometry, forwardOptions);
         if ~pose.quality.valid
@@ -91,8 +87,30 @@ for eIndex = 1:size(eCandidates, 2)
 end
 
 if count > 0
-    solutions = deduplicate(buffer(1:count), forwardTolerance, template);
+    solutions = deduplicate(buffer(1:count), jointTolerance, template);
 end
+end
+
+function [forwardTolerance, jointTolerance, collisionProfile] = ...
+        validateOptions(options, geometry)
+allowedNames = {'collisionProfile', 'forwardTolerance', 'jointTolerance'};
+if any(~ismember(fieldnames(options), allowedNames))
+    invalidOptions();
+end
+
+forwardTolerance = getOption(options, 'forwardTolerance', 1e-8);
+jointTolerance = getOption(options, 'jointTolerance', 1e-10);
+if ~isPositiveFiniteScalar(forwardTolerance) || ...
+        ~isPositiveFiniteScalar(jointTolerance)
+    invalidOptions();
+end
+forwardTolerance = double(forwardTolerance);
+jointTolerance = double(jointTolerance);
+
+collisionProfile = ...
+    duallink5.validation.validateCollisionConfiguration( ...
+        getOption(options, 'collisionProfile', "centerline"), ...
+        geometry.collision, true);
 end
 
 function [kind, position] = validateTarget(target)
@@ -180,6 +198,11 @@ else
 end
 end
 
+function valid = isPositiveFiniteScalar(value)
+valid = isnumeric(value) && isreal(value) && isscalar(value) && ...
+    isfinite(value) && value > 0;
+end
+
 function invalidTarget()
 error('duallink5:kinematics:InvalidIKTarget', ...
     'target must contain a scalar kind and a finite 2-vector position.');
@@ -187,5 +210,6 @@ end
 
 function invalidOptions()
 error('duallink5:kinematics:InvalidIKOptions', ...
-    'options must be a scalar struct with positive finite forwardTolerance.');
+    ['options may contain collisionProfile plus positive finite ', ...
+     'forwardTolerance and jointTolerance scalars.']);
 end
