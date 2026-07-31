@@ -1,5 +1,6 @@
-
-addpath('../Plot'); 
+experimentDir = fileparts(mfilename('fullpath'));
+projectRoot = fileparts(experimentDir);
+run(fullfile(projectRoot, 'startup.m'));
 % 读取CSV文件
 % data = readtable('record_20260417_153713.csv');
 % data = readtable('record_20260417_153738.csv');
@@ -34,7 +35,7 @@ position_141_range = position_141 >= -10 & position_141 <= 100;
 position_142_range = position_142 >= -10 & position_142 <= 100;
 
 % 绘图
-figure;
+figureHandle = figure;
 hold on;
 
 plot(time_valid(angle1_range), angle1(angle1_range), 'Color', [0.6,0,0], 'DisplayName', 'Angle 1'); % 深红
@@ -48,4 +49,5 @@ legend;
 grid on;
 hold off;
 
-saveFigIEEE('4');
+duallink5.viz.exportFigure(figureHandle, ...
+    fullfile(experimentDir, '4.png'), struct('resolution', 300));

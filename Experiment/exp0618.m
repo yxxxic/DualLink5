@@ -2,13 +2,13 @@ clc;
 clear;
 close all;
 
-addpath('../Definition');
-addpath('../Kinematics');
-addpath('../Plot');
+experimentDir = fileparts(mfilename('fullpath'));
+projectRoot = fileparts(experimentDir);
+run(fullfile(projectRoot, 'startup.m'));
+addpath(experimentDir);
+geometry = duallink5.model.defaultGeometry();
 
-run('../Definition/set_parameter.m');
-
-data_dir = fullfile(pwd, '实验数据', '0618');
+data_dir = fullfile(experimentDir, '实验数据', '0618');
 output_dir = fullfile(data_dir, 'figures');
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
@@ -26,10 +26,10 @@ if numel(angle_files) ~= numel(record_files)
         numel(angle_files), numel(record_files));
 end
 
-expected_pairs = 6;
-experiment_labels = ["D40_ccw", "D40_cw", "D30_ccw", "D30_cw"];
+experiment_labels = ["D40_ccw", "D40_cw", "D30_ccw"];
 experiment_titles = ["diameter 40 mm, CCW", "diameter 40 mm, CW", ...
-    "diameter 30 mm, CCW", "diameter 30 mm, CW"];
+    "diameter 30 mm, CCW"];
+expected_pairs = numel(experiment_labels);
 
 if numel(angle_files) ~= expected_pairs
     warning('Expected %d paired experiments, found %d pairs.', ...
@@ -50,10 +50,24 @@ for i = 1:numel(angle_files)
     [mt_angle1_f, mt_angle2_f, mt_filter_info] = filterMtAngles( ...
         angle_data.mt_angle1_deg, angle_data.mt_angle2_deg);
 
-    [x_g_mt, y_g_mt] = computeGTrajectory( ...
-        mt_angle1_f, mt_angle2_f, params);
-    [x_g_rs, y_g_rs] = computeGTrajectory( ...
-        angle_data.rs_id1_deg, angle_data.rs_id2_deg, params);
+    % Historical 2026-06 logs are preserved with their existing assumption:
+    % channel 1 is logical theta, channel 2 is logical phi, both already in deg.
+    % Future logs must replace these aliases with a versioned sign/zero/gear
+    % calibration before calling computeGTrajectory.
+    thetaMtLogicalDeg = mt_angle1_f;
+    phiMtLogicalDeg = mt_angle2_f;
+    thetaRsLogicalDeg = angle_data.rs_id1_deg;
+    phiRsLogicalDeg = angle_data.rs_id2_deg;
+
+    trajectoryMt = duallink5exp.computeGTrajectory( ...
+        thetaMtLogicalDeg, phiMtLogicalDeg, geometry);
+    x_g_mt = trajectoryMt.x;
+    y_g_mt = trajectoryMt.y;
+
+    trajectoryRs = duallink5exp.computeGTrajectory( ...
+        thetaRsLogicalDeg, phiRsLogicalDeg, geometry);
+    x_g_rs = trajectoryRs.x;
+    y_g_rs = trajectoryRs.y;
     optical_at_angle_time = interpolateOpticalToTimes(optical, angle_data.t_abs);
 
     optical_error = calcTrajectoryError( ...
@@ -65,8 +79,8 @@ for i = 1:numel(angle_files)
         optical, x_g_mt, y_g_mt, x_g_rs, y_g_rs);
 
     output_name = sprintf('exp0618_%02d_%s.png', i, experiment_label);
-    figure(fig);
-    saveFigIEEE(fullfile(output_dir, erase(output_name, '.png')));
+    duallink5.viz.exportFigure(fig, fullfile(output_dir, output_name), ...
+        struct('resolution', 300));
 
     fprintf('%02d %-8s: %s  <->  %s  (mt spikes: angle1=%d, angle2=%d, invalid=%d, jumps=%d, discarded=%d)\n', ...
         i, experiment_label, angle_files(i), record_files(i), ...
@@ -80,7 +94,7 @@ end
 first_record = fullfile(data_dir, record_files(1));
 first_optical = readOpticalRecord(first_record);
 fprintf('First optical point after offset: x = %.4f mm, y = %.4f mm\n', ...
-    first_optical.x(1), first_optical.y(1));
+    1e3 * first_optical.x(1), 1e3 * first_optical.y(1));
 
 function optical = readOpticalRecord(file)
     opts = detectImportOptions(file, 'VariableNamingRule', 'preserve');
@@ -88,9 +102,10 @@ function optical = readOpticalRecord(file)
 
     optical = struct();
     optical.t_abs = parseTimeColumn(T.("timestamp"), 'yyyy-MM-dd HH:mm:ss.SSSSSS');
-    optical.x = T.("aimooe_coord_position.x") - 36;
-    optical.y = T.("aimooe_coord_position.y") - 30;
-    optical.z = T.("aimooe_coord_position.z");
+    optical.x = (T.("aimooe_coord_position.x") - 36) * 1e-3;
+    optical.y = (T.("aimooe_coord_position.y") - 30) * 1e-3;
+    optical.z = T.("aimooe_coord_position.z") * 1e-3;
+    optical.units.position = "m";
 end
 
 function angle_data = readAngleRecord(file)
@@ -170,7 +185,8 @@ end
 
 function printErrorStats(label, stats)
     fprintf('%s error: mean=%.3f mm, rmse=%.3f mm, max=%.3f mm, n=%d\n', ...
-        label, stats.mean, stats.rmse, stats.max, stats.n);
+        label, 1e3 * stats.mean, 1e3 * stats.rmse, ...
+        1e3 * stats.max, stats.n);
 end
 
 function [angle1_f, angle2_f, info] = filterMtAngles(angle1, angle2)
@@ -215,35 +231,6 @@ function rows = findLargeJumpRows(angle_vec, max_step_deg)
     rows(2:end) = rows(2:end) | jump_pair;
 end
 
-function [x_g, y_g] = computeGTrajectory(theta_vec, phi_vec, params)
-    theta_vec = theta_vec(:);
-    phi_vec = phi_vec(:);
-
-    if numel(theta_vec) ~= numel(phi_vec)
-        error('theta and phi vectors must have the same length.');
-    end
-
-    x_g = nan(size(theta_vec));
-    y_g = nan(size(phi_vec));
-
-    for k = 1:numel(theta_vec)
-        theta = theta_vec(k);
-        phi = phi_vec(k);
-
-        if ~isfinite(theta) || ~isfinite(phi)
-            continue;
-        end
-
-        try
-            [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, x_g(k), y_g(k)] = ...
-                modelingfx(theta, phi, params);
-        catch
-            x_g(k) = NaN;
-            y_g(k) = NaN;
-        end
-    end
-end
-
 function fig = plotComparison( ...
     group_id, experiment_title, angle_name, record_name, ...
     optical, x_g_mt, y_g_mt, x_g_rs, y_g_rs)
@@ -257,11 +244,11 @@ function fig = plotComparison( ...
     box on;
     axis equal;
 
-    plotValid(optical.x, optical.y, ...
-        '-', [0.05 0.05 0.05], 1.8, 'none', 4, 'optical x-40, y-30');
-    plotValid(x_g_mt, y_g_mt, ...
+    plotValid(1e3 * optical.x, 1e3 * optical.y, ...
+        '-', [0.05 0.05 0.05], 1.8, 'none', 4, 'optical x-36, y-30');
+    plotValid(1e3 * x_g_mt, 1e3 * y_g_mt, ...
         '-o', [0.00 0.25 0.85], 0.6, 'o', 3.2, 'G from mt\_angle');
-    plotValid(x_g_rs, y_g_rs, ...
+    plotValid(1e3 * x_g_rs, 1e3 * y_g_rs, ...
         '-s', [0.85 0.10 0.10], 0.6, 's', 3.2, 'G from rs\_id');
 
     xlabel('x / mm');

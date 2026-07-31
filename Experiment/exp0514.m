@@ -1,7 +1,6 @@
 clc;
 clear;
 close all;
-addpath('../Plot'); 
 %% CSV 文件名
 % file = 'record_20260514_144252.csv';  % 有效
 % file = 'record_20260514_144333.csv';  % 有效
@@ -130,6 +129,3 @@ xlabel('Time / s');
 ylabel('Angle or Position / deg');
 legend('Location', 'best');
 hold off;
-
-
-% saveFigIEEE('0520');

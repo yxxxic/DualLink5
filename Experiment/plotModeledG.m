@@ -2,9 +2,11 @@ clc;
 clear;
 close all;
 
-addpath('../Definition');
-addpath('../Kinematics');
-addpath('../Plot'); 
+experimentDir = fileparts(mfilename('fullpath'));
+projectRoot = fileparts(experimentDir);
+run(fullfile(projectRoot, 'startup.m'));
+addpath(experimentDir);
+geometry = duallink5.model.defaultGeometry();
 %% 输入 CSV 文件
 % 水平放置
 % file = 'record_20260520_164213.csv';
@@ -31,7 +33,7 @@ file = 'record_20260529_142542.csv';  % 150g回
 % file = 'record_20260529_150350.csv';  % 来回无负载  有效
 % file = 'record_20260529_152154.csv';  % 升高并依次放置50g 100g
 %% 读取实验角度数据
-run('../Definition/set_parameter.m');
+file = fullfile(experimentDir, '实验数据', '0529', file);
 data = extractExperimentAngles(file);
 
 t_sec = data.t_sec;
@@ -45,18 +47,32 @@ ft_pos2 = data.ft_pos2;
 %% ft_pos 不是一一对应采样，插值到完整时间轴
 ft_pos1_interp = interp1( ...
     t_sec(data.idx_id1), ft_pos1(data.idx_id1), ...
-    t_sec, 'linear', 'extrap');
+    t_sec, 'linear', NaN);
 
 ft_pos2_interp = interp1( ...
     t_sec(data.idx_id2), ft_pos2(data.idx_id2), ...
-    t_sec, 'linear', 'extrap');
+    t_sec, 'linear', NaN);
 
 %% 分别用两组角度建模得到 G 点
-[x_G_angle, y_G_angle] = computeGTrajectory(angle1, angle2, params);
-[x_G_ft, y_G_ft] = computeGTrajectory(ft_pos1_interp, ft_pos2_interp, params);
+% extractExperimentAngles has already applied this legacy file's historical
+% channel transforms; name the resulting logical convention explicitly.
+thetaEncoderLogicalDeg = angle1;
+phiEncoderLogicalDeg = angle2;
+thetaMotorLogicalDeg = ft_pos1_interp;
+phiMotorLogicalDeg = ft_pos2_interp;
+
+trajectoryAngle = duallink5exp.computeGTrajectory( ...
+    thetaEncoderLogicalDeg, phiEncoderLogicalDeg, geometry);
+x_G_angle = trajectoryAngle.x;
+y_G_angle = trajectoryAngle.y;
+
+trajectoryFt = duallink5exp.computeGTrajectory( ...
+    thetaMotorLogicalDeg, phiMotorLogicalDeg, geometry);
+x_G_ft = trajectoryFt.x;
+y_G_ft = trajectoryFt.y;
 
 %% 绘制两组 G 点（颜色渐变表示时间顺序）
-figure('Color', 'w');
+fig = figure('Color', 'w');
 hold on;
 grid on;
 box on;
@@ -74,11 +90,12 @@ if ~any(valid_ft)
 end
 
 plotTimeGradientLine( ...
-    x_G_angle(valid_angle), y_G_angle(valid_angle), t_sec(valid_angle), ...
+    1e3 * x_G_angle(valid_angle), 1e3 * y_G_angle(valid_angle), ...
+    t_sec(valid_angle), ...
     2.2, 'G from mt6835 angle1/angle2');
 
 plotTimeGradientLine( ...
-    x_G_ft(valid_ft), y_G_ft(valid_ft), t_sec(valid_ft), ...
+    1e3 * x_G_ft(valid_ft), 1e3 * y_G_ft(valid_ft), t_sec(valid_ft), ...
     4.0, 'G from interpolated ft\_pos1/ft\_pos2');
 
 colormap turbo;
@@ -90,7 +107,8 @@ ylabel('y_G / mm');
 % title('Modeled G Trajectories from Two Angle Sources (Color = Time)');
 % legend('Location', 'best');
 hold off;
-saveFigIEEE('6');
+duallink5.viz.exportFigure(fig, fullfile(experimentDir, '6.png'), ...
+    struct('resolution', 300));
 %% 如需同时检查插值后的角度，可打开下面这段
 % figure('Color', 'w');
 % hold on;
@@ -104,30 +122,6 @@ saveFigIEEE('6');
 % ylabel('Angle / deg');
 % legend('Location', 'best');
 % hold off;
-
-%% 局部函数
-function [x_G, y_G] = computeGTrajectory(theta_vec, phi_vec, params)
-    n = numel(theta_vec);
-    x_G = nan(size(theta_vec));
-    y_G = nan(size(phi_vec));
-
-    for k = 1:n
-        theta = theta_vec(k);
-        phi = phi_vec(k);
-
-        if isnan(theta) || isnan(phi)
-            continue;
-        end
-
-        try
-            [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, x_G(k), y_G(k)] = ...
-                modelingfx(theta, phi, params);
-        catch
-            x_G(k) = NaN;
-            y_G(k) = NaN;
-        end
-    end
-end
 
 function h = plotTimeGradientLine(x, y, t, line_width, display_name)
     x = x(:).';
