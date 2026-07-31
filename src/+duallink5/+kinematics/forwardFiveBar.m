@@ -2,7 +2,15 @@ function pose = forwardFiveBar(q, geometry, options)
 if nargin < 3
     options = struct();
 end
+if ~isstruct(options) || ~isscalar(options)
+    error('duallink5:kinematics:InvalidBranchConfiguration', ...
+        'options must be a scalar struct.');
+end
 geometry = duallink5.model.validateGeometry(geometry);
+if ~(isnumeric(q) && isreal(q) && numel(q) == 2)
+    error('duallink5:kinematics:InvalidJointVector', ...
+        'q must contain numeric real [theta, phi].');
+end
 q = q(:).';
 
 pose = invalidPose("UNINITIALIZED");
@@ -10,10 +18,6 @@ pose.metadata.units = geometry.units;
 pose.metadata.convention = geometry.convention;
 pose.metadata.geometryVersion = geometry.version;
 pose.metadata.q = q;
-if numel(q) ~= 2
-    error('duallink5:kinematics:InvalidJointVector', ...
-        'q must contain [theta, phi].');
-end
 branchMode = string(getOption(options, 'branchMode', "fixed"));
 branchValue = getOption( ...
     options, 'branchId', geometry.assembly.defaultBranch);
@@ -27,6 +31,9 @@ validPrevious = ~isempty(previousPose) && isstruct(previousPose) && ...
     isnumeric(previousPose.points.D) && ...
     numel(previousPose.points.D) == 2 && ...
     all(isfinite(previousPose.points.D));
+if validPrevious
+    previousPose.points.D = previousPose.points.D(:);
+end
 if ~isscalar(branchMode) || ...
         ~ismember(branchMode, ["fixed", "continuous"]) || ...
         (branchMode == "fixed" && ~validFixedBranch) || ...
@@ -74,6 +81,7 @@ end
 [candidate, continuityCost, selectStatus] = selectCandidate( ...
     candidates, branchMode, branchId, previousPose, maxContinuityCost);
 if isempty(candidate)
+    pose.quality.continuityCost = continuityCost;
     pose.quality.statusCode = selectStatus;
     return
 end

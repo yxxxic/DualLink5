@@ -79,6 +79,25 @@ classdef TestForwardFiveBar < matlab.unittest.TestCase
             testCase.verifyLessThan(pose.quality.continuityCost, 5e-3);
         end
 
+        function continuousModeAcceptsRowPreviousPoint(testCase)
+            g = testCase.DefaultGeometry;
+            q = deg2rad([85, 52.93]);
+            previous = duallink5.kinematics.forwardFiveBar(q, g, ...
+                struct('branchId', int8(1)));
+            previous.points.D = previous.points.D.';
+            options = struct( ...
+                'branchMode', "continuous", ...
+                'previousPose', previous, ...
+                'maxContinuityCost', 1e-12);
+
+            pose = duallink5.kinematics.forwardFiveBar(q, g, options);
+
+            testCase.verifyTrue(pose.quality.valid);
+            testCase.verifyEqual(pose.quality.branchId, int8(1));
+            testCase.verifyEqual( ...
+                pose.quality.continuityCost, 0, 'AbsTol', 1e-15);
+        end
+
         function excessiveContinuityJumpReturnsStatus(testCase)
             g = testCase.DefaultGeometry;
             q = deg2rad([85, 52.93]);
@@ -94,6 +113,9 @@ classdef TestForwardFiveBar < matlab.unittest.TestCase
             testCase.verifyFalse(pose.quality.valid);
             testCase.verifyEqual( ...
                 pose.quality.statusCode, "BRANCH_DISCONTINUITY");
+            testCase.verifyTrue(isfinite(pose.quality.continuityCost));
+            testCase.verifyGreaterThan( ...
+                pose.quality.continuityCost, options.maxContinuityCost);
         end
 
         function invalidBranchConfigurationThrows(testCase)
@@ -104,6 +126,40 @@ classdef TestForwardFiveBar < matlab.unittest.TestCase
                 @() duallink5.kinematics.forwardFiveBar( ...
                     q, testCase.DefaultGeometry, options), ...
                 'duallink5:kinematics:InvalidBranchConfiguration');
+        end
+
+        function malformedOptionsThrowPublicError(testCase)
+            q = deg2rad([85, 52.93]);
+            invalidOptions = {42, repmat(struct(), 1, 2)};
+
+            for index = 1:numel(invalidOptions)
+                options = invalidOptions{index};
+                testCase.verifyError( ...
+                    @() duallink5.kinematics.forwardFiveBar( ...
+                        q, testCase.DefaultGeometry, options), ...
+                    'duallink5:kinematics:InvalidBranchConfiguration');
+            end
+        end
+
+        function complexJointVectorThrowsPublicError(testCase)
+            testCase.verifyError( ...
+                @() duallink5.kinematics.forwardFiveBar( ...
+                    [0.5, 0.25 + 1i], testCase.DefaultGeometry), ...
+                'duallink5:kinematics:InvalidJointVector');
+        end
+
+        function nonnumericJointVectorThrowsPublicError(testCase)
+            testCase.verifyError( ...
+                @() duallink5.kinematics.forwardFiveBar( ...
+                    {0.5, 0.25}, testCase.DefaultGeometry), ...
+                'duallink5:kinematics:InvalidJointVector');
+        end
+
+        function wrongLengthJointVectorThrowsPublicError(testCase)
+            testCase.verifyError( ...
+                @() duallink5.kinematics.forwardFiveBar( ...
+                    [0.5, 0.25, 0.1], testCase.DefaultGeometry), ...
+                'duallink5:kinematics:InvalidJointVector');
         end
 
         function nonfiniteInputReturnsStatus(testCase)
