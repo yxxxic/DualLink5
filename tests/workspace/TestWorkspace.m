@@ -84,6 +84,276 @@ classdef TestWorkspace < matlab.unittest.TestCase
             testCase.verifyEqual(result.maxRectangle.bounds, ...
                 [0, 1, 0, 1], 'AbsTol', 1e-12);
             testCase.verifyEqual(result.nearSingularCount, 1);
+            testCase.verifyEqual( ...
+                result.singularity.maxCondition, Inf);
+        end
+
+        function numericBinaryMaskMatchesLogicalMask(testCase)
+            logicalSamples = squareSamples();
+            numericSamples = logicalSamples;
+            numericSamples.validMask = double(logicalSamples.validMask);
+
+            logicalResult = duallink5.workspace.analyzeWorkspace( ...
+                logicalSamples, struct('alpha', Inf, ...
+                'gridSize', [20, 20]));
+            numericResult = duallink5.workspace.analyzeWorkspace( ...
+                numericSamples, struct('alpha', Inf, ...
+                'gridSize', [20, 20]));
+
+            testCase.verifyEqual( ...
+                numericResult.area, logicalResult.area);
+            testCase.verifyEqual(numericResult.maxRectangle.bounds, ...
+                logicalResult.maxRectangle.bounds);
+        end
+
+        function numericOnesMaskDoesNotRepeatFirstSample(testCase)
+            samples = squareSamples();
+            samples.x = samples.x(1:2, :);
+            samples.y = samples.y(1:2, :);
+            samples.validMask = ones(2, 2);
+            samples.reasonMap = samples.reasonMap(1:2, :);
+            samples.conditionNumber = samples.conditionNumber(1:2, :);
+
+            result = duallink5.workspace.analyzeWorkspace( ...
+                samples, struct('alpha', Inf, ...
+                'gridSize', [20, 20]));
+
+            testCase.verifyEqual(result.area, 1, 'AbsTol', 1e-12);
+        end
+
+        function invalidNumericSampleMasksUseStableError(testCase)
+            samples = squareSamples();
+            malformedMasks = { ...
+                [1, 1; 1, 2; 0, 0], ...
+                [1, 1; 1, NaN; 0, 0], ...
+                [1, 1; 1, Inf; 0, 0]};
+
+            for index = 1:numel(malformedMasks)
+                samples.validMask = malformedMasks{index};
+                testCase.verifyError( ...
+                    @() duallink5.workspace.analyzeWorkspace( ...
+                    samples, struct()), ...
+                    'duallink5:workspace:InvalidSamples');
+            end
+        end
+
+        function malformedSampleShapesUseStableError(testCase)
+            baseline = squareSamples();
+            badMask = baseline;
+            badMask.validMask = true(2, 2);
+            badReason = baseline;
+            badReason.reasonMap = strings(2, 2);
+            badCondition = baseline;
+            badCondition.conditionNumber = ones(2, 2);
+            badY = baseline;
+            badY.y = zeros(2, 2);
+            missingMetadata = rmfield(baseline, 'metadata');
+            malformed = {badMask, badReason, badCondition, ...
+                badY, missingMetadata};
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.analyzeWorkspace( ...
+                    malformed{index}, struct()), ...
+                    'duallink5:workspace:InvalidSamples');
+            end
+        end
+
+        function nonfiniteValidCoordinatesUseStableError(testCase)
+            samples = squareSamples();
+            samples.x(1, 1) = NaN;
+
+            testCase.verifyError( ...
+                @() duallink5.workspace.analyzeWorkspace( ...
+                samples, struct()), ...
+                'duallink5:workspace:InvalidSamples');
+        end
+
+        function duplicateCoordinatesAreInsufficientSamples(testCase)
+            samples = squareSamples();
+            samples.x = [0, 1; 0, 1];
+            samples.y = [0, 1; 0, 1];
+            samples.validMask = true(2, 2);
+            samples.reasonMap = repmat("OK", 2, 2);
+            samples.conditionNumber = ones(2, 2);
+
+            testCase.verifyError( ...
+                @() duallink5.workspace.analyzeWorkspace( ...
+                samples, struct()), ...
+                'duallink5:workspace:InsufficientSamples');
+        end
+
+        function collinearCoordinatesHaveInsufficientSpan(testCase)
+            samples = squareSamples();
+            samples.x = [0, 1; 1, 2];
+            samples.y = samples.x;
+            samples.validMask = true(2, 2);
+            samples.reasonMap = repmat("OK", 2, 2);
+            samples.conditionNumber = ones(2, 2);
+
+            testCase.verifyError( ...
+                @() duallink5.workspace.analyzeWorkspace( ...
+                samples, struct()), ...
+                'duallink5:workspace:InsufficientSpan');
+        end
+
+        function largestRectangleRejectsInvalidNumericMasks(testCase)
+            malformed = { ...
+                [1, 0; NaN, 1], ...
+                [1, 0; Inf, 1], ...
+                [1, 0; 2, 1], ...
+                [1, 0; -1, 1]};
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.largestRectangleInMask( ...
+                    malformed{index}, 1, 1), ...
+                    'duallink5:workspace:InvalidRectangleInput');
+            end
+        end
+
+        function samplerRejectsEmptyAndMalformedAngleGrids(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            taskSpec = struct('kind', "pointG");
+            validGrid = struct('theta', pi, 'phi', pi);
+            emptyTheta = validGrid;
+            emptyTheta.theta = zeros(1, 0);
+            complexPhi = validGrid;
+            complexPhi.phi = pi + 1i;
+            textTheta = validGrid;
+            textTheta.theta = "pi";
+            missingPhi = rmfield(validGrid, 'phi');
+            malformed = {emptyTheta, complexPhi, textTheta, ...
+                missingPhi, repmat(validGrid, 1, 2)};
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.sampleWorkspace( ...
+                    malformed{index}, geometry, taskSpec, struct()), ...
+                    'duallink5:workspace:InvalidAngleGrid');
+            end
+        end
+
+        function samplerRejectsMalformedOptionsDeterministically(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid = struct('theta', pi, 'phi', pi);
+            taskSpec = struct('kind', "pointG");
+            malformed = {[], 42, "ideal", repmat(struct(), 1, 2)};
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.sampleWorkspace( ...
+                    grid, geometry, taskSpec, malformed{index}), ...
+                    'duallink5:workspace:InvalidWorkspaceOptions');
+            end
+        end
+
+        function samplerValidatesTaskSpecOnUnreachableGrid(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid = struct('theta', pi, 'phi', pi);
+            malformed = { ...
+                struct(), ...
+                struct('kind', "unsupported"), ...
+                struct('kind', "pointG", 'includeOrientation', 2), ...
+                struct('kind', "sharedOffset"), ...
+                struct('kind', "marker", 'offset', [NaN; 0]), ...
+                struct('kind', "pointG", 'orientationOffset', Inf)};
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.sampleWorkspace( ...
+                    grid, geometry, malformed{index}, struct()), ...
+                    'duallink5:kinematics:InvalidTaskSpec');
+            end
+        end
+
+        function samplerNormalizesTaskSpecOnce(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid.theta = deg2rad(85);
+            grid.phi = deg2rad(52.93);
+            taskSpec = struct( ...
+                'kind', 'sharedOffset', ...
+                'includeOrientation', 1, ...
+                'offset', [0, 0], ...
+                'orientationOffset', single(0.2));
+
+            samples = duallink5.workspace.sampleWorkspace( ...
+                grid, geometry, taskSpec, struct());
+
+            testCase.verifyEqual( ...
+                samples.metadata.taskSpec.kind, "sharedOffset");
+            testCase.verifyTrue( ...
+                islogical(samples.metadata.taskSpec.includeOrientation));
+            testCase.verifyEqual( ...
+                samples.metadata.taskSpec.offset, [0; 0]);
+            testCase.verifyEqual( ...
+                samples.metadata.taskSpec.orientationOffset, ...
+                double(single(0.2)));
+            testCase.verifyTrue(samples.validMask);
+            testCase.verifyTrue(isfinite(samples.orientation));
+        end
+
+        function analysisNormalizesNumericClasses(testCase)
+            samples = squareSamples();
+            samples.x = single(samples.x);
+            samples.y = single(samples.y);
+            options = struct( ...
+                'alpha', single(Inf), ...
+                'gridSize', uint8([255, 2]));
+
+            result = duallink5.workspace.analyzeWorkspace( ...
+                samples, options);
+
+            testCase.verifyClass(result.xEdges, 'double');
+            testCase.verifyClass(result.yEdges, 'double');
+            testCase.verifySize(result.insideMask, [2, 255]);
+            testCase.verifyEqual(result.area, 1, 'AbsTol', 1e-12);
+        end
+
+        function samplerNormalizesSingleAngleGrid(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            singleGrid.theta = single(deg2rad(85));
+            singleGrid.phi = single(deg2rad(52.93));
+            doubleGrid.theta = double(singleGrid.theta);
+            doubleGrid.phi = double(singleGrid.phi);
+            taskSpec = struct('kind', "pointG");
+
+            singleSamples = duallink5.workspace.sampleWorkspace( ...
+                singleGrid, geometry, taskSpec, struct());
+            doubleSamples = duallink5.workspace.sampleWorkspace( ...
+                doubleGrid, geometry, taskSpec, struct());
+
+            testCase.verifyClass(singleSamples.thetaGrid, 'double');
+            testCase.verifyClass(singleSamples.phiGrid, 'double');
+            testCase.verifyEqual( ...
+                singleSamples.validMask, doubleSamples.validMask);
+            testCase.verifyEqual(singleSamples.x, doubleSamples.x);
+            testCase.verifyEqual(singleSamples.y, doubleSamples.y);
+        end
+
+        function rectangleNormalizesIntegerCellSizes(testCase)
+            mask = logical([1 1 0; 1 1 1; 1 1 1]);
+
+            result = duallink5.workspace.largestRectangleInMask( ...
+                mask, uint8(200), uint8(3));
+
+            testCase.verifyClass(result.area, 'double');
+            testCase.verifyClass(result.width, 'double');
+            testCase.verifyClass(result.height, 'double');
+            testCase.verifyEqual(result.area, 3600);
+            testCase.verifyEqual(result.width, 400);
+            testCase.verifyEqual(result.height, 9);
         end
     end
+end
+
+function samples = squareSamples()
+samples.x = [0, 1; 0, 1; NaN, NaN];
+samples.y = [0, 0; 1, 1; NaN, NaN];
+samples.validMask = logical([1, 1; 1, 1; 0, 0]);
+samples.reasonMap = ["OK", "OK"; "OK", "OK"; ...
+    "NEAR_SINGULAR", "NONFINITE_INPUT"];
+samples.conditionNumber = [2, 3; 4, 5; Inf, NaN];
+samples.metadata = struct('units', ...
+    struct('length', "m", 'angle', "rad"));
 end

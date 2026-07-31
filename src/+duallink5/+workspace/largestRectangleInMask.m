@@ -5,6 +5,8 @@ if ~isValidMask(mask) || ~isPositiveFiniteScalar(dx) || ...
         'mask must be 2-D and dx/dy must be positive finite scalars.');
 end
 mask = logical(mask);
+dx = double(dx);
+dy = double(dy);
 heights = zeros(1, size(mask, 2));
 best = emptyRectangle();
 
@@ -69,8 +71,11 @@ result = struct( ...
 end
 
 function valid = isValidMask(mask)
-valid = (isnumeric(mask) || islogical(mask)) && ...
-    isreal(mask) && ismatrix(mask);
+valid = islogical(mask) && ismatrix(mask);
+if isnumeric(mask) && isreal(mask) && ismatrix(mask)
+    valid = all(isfinite(mask), 'all') && ...
+        all(mask == 0 | mask == 1, 'all');
+end
 end
 
 function valid = isPositiveFiniteScalar(value)

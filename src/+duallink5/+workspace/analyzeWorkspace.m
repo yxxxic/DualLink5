@@ -2,16 +2,25 @@ function result = analyzeWorkspace(samples, options)
 if nargin < 2
     options = struct();
 end
-validX = samples.x(samples.validMask);
-validY = samples.y(samples.validMask);
-if numel(validX) < 3
+samples = normalizeSamples(samples);
+validX = full(double(samples.x(samples.validMask)));
+validY = full(double(samples.y(samples.validMask)));
+validX = validX(:);
+validY = validY(:);
+uniquePoints = unique([validX(:), validY(:)], 'rows');
+if size(uniquePoints, 1) < 3
     error('duallink5:workspace:InsufficientSamples', ...
-        'At least three valid task samples are required.');
+        'At least three unique valid task samples are required.');
 end
-if max(validX) == min(validX) || max(validY) == min(validY)
+centeredPoints = uniquePoints - mean(uniquePoints, 1);
+rankTolerance = max(size(centeredPoints)) * ...
+    eps(norm(centeredPoints, 2));
+if rank(centeredPoints, rankTolerance) < 2
     error('duallink5:workspace:InsufficientSpan', ...
-        'Valid task samples must span nonzero x and y ranges.');
+        'Valid task samples must span a two-dimensional region.');
 end
+validX = uniquePoints(:, 1);
+validY = uniquePoints(:, 2);
 
 alpha = getOption(options, 'alpha', Inf);
 if ~(isnumeric(alpha) && isreal(alpha) && isscalar(alpha) && ...
@@ -19,6 +28,7 @@ if ~(isnumeric(alpha) && isreal(alpha) && isscalar(alpha) && ...
     error('duallink5:workspace:InvalidAlpha', ...
         'alpha must be a positive scalar or Inf.');
 end
+alpha = full(double(alpha));
 shape = alphaShape(validX, validY, alpha);
 result.area = area(shape);
 result.boundaryShape = shape;
@@ -32,6 +42,7 @@ if ~(isnumeric(gridSize) && isreal(gridSize) && ...
         ['gridSize must contain two integers greater than or ' ...
          'equal to 2.']);
 end
+gridSize = full(double(gridSize));
 result.xEdges = linspace( ...
     min(validX), max(validX), gridSize(1) + 1);
 result.yEdges = linspace( ...
@@ -66,20 +77,68 @@ result.reasonCounts = table(statusCodes, counts, ...
 result.nearSingularCount = ...
     nnz(samples.reasonMap == "NEAR_SINGULAR");
 if isfield(samples, 'conditionNumber')
-    finiteConditions = samples.conditionNumber( ...
-        isfinite(samples.conditionNumber));
+    conditions = samples.conditionNumber( ...
+        ~isnan(samples.conditionNumber));
 else
-    finiteConditions = [];
+    conditions = [];
 end
 result.singularity.nearCount = result.nearSingularCount;
-if isempty(finiteConditions)
+if isempty(conditions)
     result.singularity.maxCondition = NaN;
     result.singularity.medianCondition = NaN;
 else
-    result.singularity.maxCondition = max(finiteConditions);
-    result.singularity.medianCondition = median(finiteConditions);
+    result.singularity.maxCondition = max(conditions);
+    result.singularity.medianCondition = median(conditions);
 end
 result.metadata = samples.metadata;
+end
+
+function samples = normalizeSamples(samples)
+requiredFields = {'x', 'y', 'validMask', 'reasonMap', 'metadata'};
+if ~isstruct(samples) || ~isscalar(samples) || ...
+        ~all(isfield(samples, requiredFields))
+    invalidSamples();
+end
+if ~isnumeric(samples.x) || ~isreal(samples.x) || ...
+        ~ismatrix(samples.x) || ...
+        ~isnumeric(samples.y) || ~isreal(samples.y) || ...
+        ~ismatrix(samples.y)
+    invalidSamples();
+end
+sampleSize = size(samples.x);
+if ~isequal(size(samples.y), sampleSize) || ...
+        ~isstring(samples.reasonMap) || ...
+        ~ismatrix(samples.reasonMap) || ...
+        ~isequal(size(samples.reasonMap), sampleSize)
+    invalidSamples();
+end
+
+mask = samples.validMask;
+logicalMask = islogical(mask) && ismatrix(mask);
+numericMask = isnumeric(mask) && isreal(mask) && ismatrix(mask) && ...
+    all(isfinite(mask), 'all') && ...
+    all(mask == 0 | mask == 1, 'all');
+if ~(logicalMask || numericMask) || ~isequal(size(mask), sampleSize)
+    invalidSamples();
+end
+samples.validMask = logical(mask);
+if any(~isfinite(samples.x(samples.validMask)), 'all') || ...
+        any(~isfinite(samples.y(samples.validMask)), 'all')
+    invalidSamples();
+end
+
+if isfield(samples, 'conditionNumber') && ...
+        (~isnumeric(samples.conditionNumber) || ...
+        ~isreal(samples.conditionNumber) || ...
+        ~isequal(size(samples.conditionNumber), sampleSize))
+    invalidSamples();
+end
+end
+
+function invalidSamples()
+error('duallink5:workspace:InvalidSamples', ...
+    ['samples must contain consistently sized real numeric x/y, ' ...
+     'a binary validMask, string reasonMap, and metadata.']);
 end
 
 function value = getOption(options, name, defaultValue)
