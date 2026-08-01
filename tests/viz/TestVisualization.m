@@ -125,6 +125,7 @@ classdef TestVisualization < matlab.unittest.TestCase
             end
 
             badBoundary = result;
+            badBoundary.boundaryMesh = [];
             badBoundary.boundaryShape = [];
             badBounds = result;
             badBounds.maxRectangle.bounds = [1,0,0,1];
@@ -135,6 +136,11 @@ classdef TestVisualization < matlab.unittest.TestCase
                     samples,malformedResults{index},axesHandle), ...
                     'duallink5:viz:InvalidWorkspacePlotInput');
             end
+
+            alphaFallback = rmfield(result,'boundaryMesh');
+            handles = duallink5.viz.plotWorkspaceResult( ...
+                samples,alphaFallback,axesHandle);
+            testCase.verifyEqual(handles.boundary.Parent,axesHandle);
             clear cleanup
         end
 

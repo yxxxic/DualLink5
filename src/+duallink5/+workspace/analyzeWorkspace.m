@@ -111,15 +111,17 @@ for row = 1:rowCount - 1
             [rowCount, columnCount], row + 1, column);
         bottomRight = sub2ind( ...
             [rowCount, columnCount], row + 1, column + 1);
-        candidates = [ ...
-            topLeft, topRight, bottomRight; ...
-            topLeft, bottomRight, bottomLeft];
-        for candidate = 1:2
-            indices = candidates(candidate, :);
-            if all(samples.validMask(indices))
-                faceCount = faceCount + 1;
-                faces(faceCount, :) = indices;
-            end
+        cellIndices = [topLeft, topRight, bottomLeft, bottomRight];
+        validIndices = cellIndices(samples.validMask(cellIndices));
+        if numel(validIndices) == 4
+            % Preserve the fixed top-left to bottom-right diagonal.
+            faceCount = faceCount + 1;
+            faces(faceCount, :) = [topLeft, topRight, bottomRight];
+            faceCount = faceCount + 1;
+            faces(faceCount, :) = [topLeft, bottomRight, bottomLeft];
+        elseif numel(validIndices) == 3
+            faces(faceCount + 1, :) = validIndices(:).';
+            faceCount = faceCount + 1;
         end
     end
 end
@@ -134,7 +136,7 @@ allVertices = [samples.x(:), samples.y(:)];
 used = unique(faces(:));
 indexMap = zeros(size(allVertices, 1), 1);
 indexMap(used) = 1:numel(used);
-faces = indexMap(faces);
+faces = reshape(indexMap(faces), size(faces));
 vertices = full(double(allVertices(used, :)));
 mesh = triangulation(faces, vertices);
 

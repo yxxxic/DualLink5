@@ -110,6 +110,30 @@ classdef TestWorkspace < matlab.unittest.TestCase
             testCase.verifyTrue(isfield(result, 'boundaryMesh'));
         end
 
+        function partialCellsPreserveEveryThreeCornerTriangle(testCase)
+            [X, Y] = meshgrid(0:1, 0:1);
+            base.x = X;
+            base.y = Y;
+            base.validMask = true(2);
+            base.reasonMap = repmat("OK", 2);
+            base.conditionNumber = ones(2);
+            base.metadata = struct('units', ...
+                struct('length', "m", 'angle', "rad"));
+
+            for invalidIndex = 1:4
+                samples = base;
+                samples.validMask(invalidIndex) = false;
+                samples.reasonMap(invalidIndex) = "OUTSIDE_WORKSPACE";
+
+                result = duallink5.workspace.analyzeWorkspace( ...
+                    samples, struct('gridSize', [10, 10]));
+
+                testCase.verifySize( ...
+                    result.boundaryMesh.ConnectivityList, [1, 3]);
+                testCase.verifyEqual(result.area, 0.5, 'AbsTol', 1e-12);
+            end
+        end
+
         function numericBinaryMaskMatchesLogicalMask(testCase)
             logicalSamples = squareSamples();
             numericSamples = logicalSamples;
