@@ -16,6 +16,8 @@ classdef DL5MotionApp < handle
         YValueLabel
         StatusLamp
         StatusLabel
+        PlotXLimits
+        PlotYLimits
         IsUpdatingUI = false
     end
 
@@ -46,6 +48,10 @@ classdef DL5MotionApp < handle
                 app.Figure.UserData = [];
                 delete(app.Figure);
             end
+        end
+
+        function refreshView(app)
+            app.refresh();
         end
     end
 
@@ -95,6 +101,8 @@ classdef DL5MotionApp < handle
 
             addSectionTitle(controls, 'Point G / B_{k+1}', 6);
             [xLimits, yLimits] = app.pointSliderLimits();
+            [app.PlotXLimits, app.PlotYLimits] = ...
+                app.mechanismPlotLimits(yLimits);
             [app.XValueLabel, app.XSlider] = ...
                 app.addSliderControl(controls, 7, 8, ...
                     'x_G [mm]', xLimits, ...
@@ -173,6 +181,13 @@ classdef DL5MotionApp < handle
             yLimits = includeValue(yLimits, point(2));
         end
 
+        function [xLimits, yLimits] = mechanismPlotLimits( ...
+                ~, pointYLimits)
+            centerReach = diff(pointYLimits) / 2;
+            xLimits = 2 * centerReach * [-1, 1];
+            yLimits = centerReach * [-0.2, 2.2];
+        end
+
         function onAngleRequest(app, theta, phi)
             if app.IsUpdatingUI
                 return
@@ -212,6 +227,10 @@ classdef DL5MotionApp < handle
                 pointMillimetres(2), 'kp', ...
                 'MarkerSize', 11, 'MarkerFaceColor', 'y');
             hold(app.MechanismAxes, 'off');
+            xlim(app.MechanismAxes, app.PlotXLimits);
+            ylim(app.MechanismAxes, app.PlotYLimits);
+            app.MechanismAxes.XLimMode = 'manual';
+            app.MechanismAxes.YLimMode = 'manual';
             title(app.MechanismAxes, sprintf( ...
                 '\\theta = %.2f^\\circ, \\phi = %.2f^\\circ', ...
                 qDegrees(1), qDegrees(2)), 'Interpreter', 'tex');
