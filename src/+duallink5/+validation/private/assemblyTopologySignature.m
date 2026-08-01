@@ -119,11 +119,10 @@ end
 
 t = cross2(second.p1 - first.p1, s) / denominator;
 u = cross2(second.p1 - first.p1, r) / denominator;
-parameterTolerance = tolerance / ...
-    max([norm(r), norm(s), tolerance]);
-intersects = t > parameterTolerance && ...
-    t < 1 - parameterTolerance && ...
-    u > parameterTolerance && u < 1 - parameterTolerance;
+tTolerance = tolerance / max(norm(r), tolerance);
+uTolerance = tolerance / max(norm(s), tolerance);
+intersects = t > tTolerance && t < 1 - tTolerance && ...
+    u > uTolerance && u < 1 - uTolerance;
 end
 
 function value = cross2(first, second)

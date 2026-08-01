@@ -93,6 +93,23 @@ classdef TestAssemblyTopology < matlab.unittest.TestCase
             testCase.verifyFalse(any(all( ...
                 result.candidateSignature == endpointPair, 2)));
         end
+
+        function shortLinkEndpointToleranceIsScaledPerLink(testCase)
+            assembly = makeAssembly(testCase.Geometry, [85, 30]);
+            tolerance = testCase.Geometry.tolerance.length;
+            assembly.lower.points.A = [0; 0];
+            assembly.lower.points.B = [1; 0];
+            assembly.lower.points.Palpha1 = [0.5; -0.5 * tolerance];
+            assembly.lower.points.Palpha2 = ...
+                [0.5; 1e-3 - 0.5 * tolerance];
+
+            result = duallink5.validation.compareAssemblyTopology( ...
+                assembly, assembly, testCase.Geometry);
+
+            endpointPair = ["alpha.12", "lower.link5"];
+            testCase.verifyFalse(any(all( ...
+                result.candidateSignature == endpointPair, 2)));
+        end
     end
 end
 
