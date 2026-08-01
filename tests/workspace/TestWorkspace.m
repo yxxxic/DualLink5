@@ -60,9 +60,9 @@ classdef TestWorkspace < matlab.unittest.TestCase
 
             testCase.verifyEqual(nnz(samples.validMask), 81);
             testCase.verifyEqual(result.area, ...
-                4.844403225084295e-4, 'AbsTol', 1e-12);
+                4.490009119731253e-4, 'AbsTol', 1e-12);
             testCase.verifyEqual(result.maxRectangle.area, ...
-                1.515848848459369e-4, 'AbsTol', 1e-12);
+                1.263207373716140e-4, 'AbsTol', 1e-12);
         end
 
         function squareSamplesGiveAreaAndRectangleRegression(testCase)
@@ -86,6 +86,28 @@ classdef TestWorkspace < matlab.unittest.TestCase
             testCase.verifyEqual(result.nearSingularCount, 1);
             testCase.verifyEqual( ...
                 result.singularity.maxCondition, Inf);
+        end
+
+        function sampledTopologyPreservesInteriorHole(testCase)
+            [X, Y] = meshgrid(0:4, 0:4);
+            samples.x = X;
+            samples.y = Y;
+            samples.validMask = true(5);
+            samples.validMask(2:4, 2:4) = false;
+            samples.reasonMap = repmat("OK", 5);
+            samples.reasonMap(~samples.validMask) = ...
+                "PARALLEL_SHARED_COLLISION";
+            samples.conditionNumber = ones(5);
+            samples.metadata = struct('units', ...
+                struct('length', "m", 'angle', "rad"));
+
+            result = duallink5.workspace.analyzeWorkspace( ...
+                samples, struct('gridSize', [40, 40]));
+
+            testCase.verifyFalse(result.insideMask(21, 21));
+            testCase.verifyLessThan(result.area, 16);
+            testCase.verifyGreaterThan(result.area, 0);
+            testCase.verifyTrue(isfield(result, 'boundaryMesh'));
         end
 
         function numericBinaryMaskMatchesLogicalMask(testCase)

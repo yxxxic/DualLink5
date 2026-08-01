@@ -30,8 +30,10 @@ if ~(isnumeric(alpha) && isreal(alpha) && isscalar(alpha) && ...
 end
 alpha = full(double(alpha));
 shape = alphaShape(validX, validY, alpha);
-result.area = area(shape);
 result.boundaryShape = shape;
+[mesh, meshArea] = sampledWorkspaceMesh(samples);
+result.boundaryMesh = mesh;
+result.area = meshArea;
 
 gridSize = getOption(options, 'gridSize', [150, 150]);
 if ~(isnumeric(gridSize) && isreal(gridSize) && ...
@@ -52,7 +54,8 @@ result.xGrid = (result.xEdges(1:end-1) + ...
 result.yGrid = (result.yEdges(1:end-1) + ...
     result.yEdges(2:end)) / 2;
 [X, Y] = meshgrid(result.xGrid, result.yGrid);
-result.insideMask = inShape(shape, X, Y);
+locations = pointLocation(mesh, [X(:), Y(:)]);
+result.insideMask = reshape(~isnan(locations), size(X));
 dx = result.xEdges(2) - result.xEdges(1);
 dy = result.yEdges(2) - result.yEdges(1);
 result.maxRectangle = ...
@@ -91,6 +94,59 @@ else
     result.singularity.medianCondition = median(conditions);
 end
 result.metadata = samples.metadata;
+end
+
+function [mesh, totalArea] = sampledWorkspaceMesh(samples)
+[rowCount, columnCount] = size(samples.validMask);
+faces = zeros(2 * max(0, rowCount - 1) * ...
+    max(0, columnCount - 1), 3);
+faceCount = 0;
+
+for row = 1:rowCount - 1
+    for column = 1:columnCount - 1
+        topLeft = sub2ind([rowCount, columnCount], row, column);
+        topRight = sub2ind( ...
+            [rowCount, columnCount], row, column + 1);
+        bottomLeft = sub2ind( ...
+            [rowCount, columnCount], row + 1, column);
+        bottomRight = sub2ind( ...
+            [rowCount, columnCount], row + 1, column + 1);
+        candidates = [ ...
+            topLeft, topRight, bottomRight; ...
+            topLeft, bottomRight, bottomLeft];
+        for candidate = 1:2
+            indices = candidates(candidate, :);
+            if all(samples.validMask(indices))
+                faceCount = faceCount + 1;
+                faces(faceCount, :) = indices;
+            end
+        end
+    end
+end
+
+faces = faces(1:faceCount, :);
+if isempty(faces)
+    error('duallink5:workspace:InsufficientTopology', ...
+        ['Valid samples do not contain a connected triangular ' ...
+         'cell in the angle grid.']);
+end
+allVertices = [samples.x(:), samples.y(:)];
+used = unique(faces(:));
+indexMap = zeros(size(allVertices, 1), 1);
+indexMap(used) = 1:numel(used);
+faces = indexMap(faces);
+vertices = full(double(allVertices(used, :)));
+mesh = triangulation(faces, vertices);
+
+first = vertices(faces(:, 1), :);
+second = vertices(faces(:, 2), :);
+third = vertices(faces(:, 3), :);
+twiceArea = abs( ...
+    (second(:, 1) - first(:, 1)) .* ...
+    (third(:, 2) - first(:, 2)) - ...
+    (second(:, 2) - first(:, 2)) .* ...
+    (third(:, 1) - first(:, 1)));
+totalArea = 0.5 * sum(twiceArea);
 end
 
 function samples = normalizeSamples(samples)

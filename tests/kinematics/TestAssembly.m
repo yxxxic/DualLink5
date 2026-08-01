@@ -29,6 +29,33 @@ classdef TestAssembly < matlab.unittest.TestCase
                 assembly.upper.points.E, 'AbsTol', 1e-10);
         end
 
+        function fullAssemblyClearanceRejectsFoldedPose(testCase)
+            q.lower = deg2rad([180, 68.25]);
+            q.upper = q.lower;
+
+            assembly = duallink5.kinematics.forwardAssembly( ...
+                q, testCase.Geometry, struct('mode', "ideal"));
+
+            testCase.verifyFalse(assembly.quality.valid);
+            testCase.verifyEqual(assembly.quality.statusCode, ...
+                "PARALLEL_SHARED_COLLISION");
+            testCase.verifyLessThanOrEqual( ...
+                assembly.quality.parallelSharedClearance, ...
+                testCase.Geometry.collision.parallelSharedClearance);
+        end
+
+        function collisionProfileNoneDisablesAssemblyClearance(testCase)
+            q.lower = deg2rad([180, 68.25]);
+            q.upper = q.lower;
+
+            assembly = duallink5.kinematics.forwardAssembly( ...
+                q, testCase.Geometry, ...
+                struct('mode', "ideal", 'collisionProfile', "none"));
+
+            testCase.verifyTrue(assembly.quality.valid);
+            testCase.verifyEqual(assembly.quality.statusCode, "OK");
+        end
+
         function diagnosticModeReportsPerturbation(testCase)
             q.lower = testCase.Q;
             q.upper = testCase.Q + deg2rad([0.2, -0.1]);

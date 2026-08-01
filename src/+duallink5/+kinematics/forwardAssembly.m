@@ -48,6 +48,7 @@ assembly.upperLocal = upperLocal;
 assembly.quality.valid = false;
 assembly.quality.diagnosticAvailable = false;
 assembly.quality.statusCode = "UNINITIALIZED";
+assembly.quality.parallelSharedClearance = NaN;
 assembly.symmetryResidual = [NaN; NaN; NaN];
 assembly.metadata.mode = mode;
 assembly.metadata.units = geometry.units;
@@ -117,6 +118,45 @@ else
     assembly.quality.valid = false;
     assembly.quality.statusCode = "SHARED_LINK_MISMATCH";
 end
+
+if assembly.quality.valid && mode == "ideal"
+    collisionProfile = ...
+        duallink5.validation.validateCollisionConfiguration( ...
+            getOption(options, 'collisionProfile', "centerline"), ...
+            geometry.collision, true);
+    clearance = parallelSharedDistance(lower.points);
+    assembly.quality.parallelSharedClearance = clearance;
+    if collisionProfile ~= "none" && clearance <= ...
+            geometry.collision.parallelSharedClearance
+        assembly.quality.valid = false;
+        assembly.quality.statusCode = "PARALLEL_SHARED_COLLISION";
+        assembly = rmfield(assembly, 'sharedLink');
+    end
+end
+end
+
+function distance = parallelSharedDistance(points)
+firstStart = points.Pbeta1(:);
+firstEnd = points.Pbeta2(:);
+secondStart = points.E(:);
+secondEnd = points.D(:);
+distance = min([ ...
+    pointSegmentDistance(firstStart, secondStart, secondEnd), ...
+    pointSegmentDistance(firstEnd, secondStart, secondEnd), ...
+    pointSegmentDistance(secondStart, firstStart, firstEnd), ...
+    pointSegmentDistance(secondEnd, firstStart, firstEnd)]);
+end
+
+function distance = pointSegmentDistance(point, startPoint, endPoint)
+segment = endPoint - startPoint;
+denominator = dot(segment, segment);
+if denominator == 0
+    distance = norm(point - startPoint);
+    return
+end
+parameter = dot(point - startPoint, segment) / denominator;
+parameter = max(0, min(1, parameter));
+distance = norm(point - (startPoint + parameter * segment));
 end
 
 function angle = wrapAngle(angle)

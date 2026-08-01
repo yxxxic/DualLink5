@@ -4,7 +4,7 @@ if ~(isscalar(axesHandle) && isgraphics(axesHandle, 'axes'))
         'axesHandle must be a live scalar axes handle.');
 end
 [validX, validY] = validateSamples(samples);
-[boundaryShape, rectangleInfo] = validateResult(result);
+[boundaryGeometry, rectangleInfo] = validateResult(result);
 millimetresPerMetre = 1e3;
 validX = millimetresPerMetre * validX;
 validY = millimetresPerMetre * validY;
@@ -14,14 +14,14 @@ axesHandle.NextPlot = 'add';
 cleanup = onCleanup( ...
     @()restoreNextPlot(axesHandle, originalNextPlot));
 handles.samples = scatter(axesHandle, validX, validY, 8, '.');
-[triangles, shapePoints] = alphaTriangulation(boundaryShape);
+[triangles, shapePoints, boundaryEdges, boundaryPoints] = ...
+    renderGeometry(boundaryGeometry);
 shapePoints = millimetresPerMetre * shapePoints;
 boundaryColor = [0, 0.45, 0.74];
 handles.boundary = patch(axesHandle, ...
     'Faces', triangles, 'Vertices', shapePoints, ...
     'FaceColor', boundaryColor, 'FaceAlpha', 0.08, ...
     'EdgeColor', 'none');
-[boundaryEdges, boundaryPoints] = boundaryFacets(boundaryShape);
 boundaryPoints = millimetresPerMetre * boundaryPoints;
 edgeCount = size(boundaryEdges, 1);
 outlineX = [boundaryPoints(boundaryEdges(:, 1), 1), ...
@@ -73,16 +73,25 @@ validX = full(double(samples.x(mask)));
 validY = full(double(samples.y(mask)));
 end
 
-function [boundaryShape, rectangleInfo] = validateResult(result)
+function [boundaryGeometry, rectangleInfo] = validateResult(result)
 if ~isstruct(result) || ~isscalar(result) || ...
-        ~isfield(result, 'boundaryShape') || ...
-        ~isfield(result, 'maxRectangle') || ...
-        ~isa(result.boundaryShape, 'alphaShape') || ...
-        ~isscalar(result.boundaryShape)
+        ~isfield(result, 'maxRectangle')
     invalidWorkspaceInput();
 end
-boundaryShape = result.boundaryShape;
-shapePoints = boundaryShape.Points;
+
+if isfield(result, 'boundaryMesh') && ...
+        isa(result.boundaryMesh, 'triangulation') && ...
+        isscalar(result.boundaryMesh)
+    boundaryGeometry = result.boundaryMesh;
+    shapePoints = boundaryGeometry.Points;
+elseif isfield(result, 'boundaryShape') && ...
+        isa(result.boundaryShape, 'alphaShape') && ...
+        isscalar(result.boundaryShape)
+    boundaryGeometry = result.boundaryShape;
+    shapePoints = boundaryGeometry.Points;
+else
+    invalidWorkspaceInput();
+end
 if ~isnumeric(shapePoints) || ~isreal(shapePoints) || ...
         size(shapePoints, 1) < 3 || size(shapePoints, 2) ~= 2 || ...
         any(~isfinite(shapePoints), 'all')
@@ -113,6 +122,18 @@ if rectangleInfo.areaCells > 0
         invalidWorkspaceInput();
     end
     rectangleInfo.bounds = full(double(bounds));
+end
+end
+
+function [triangles, points, boundaryEdges, boundaryPoints] = ...
+        renderGeometry(geometry)
+if isa(geometry, 'triangulation')
+    triangles = geometry.ConnectivityList;
+    points = geometry.Points;
+    [boundaryEdges, boundaryPoints] = freeBoundary(geometry);
+else
+    [triangles, points] = alphaTriangulation(geometry);
+    [boundaryEdges, boundaryPoints] = boundaryFacets(geometry);
 end
 end
 

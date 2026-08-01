@@ -18,6 +18,9 @@ classdef TestGeometry < matlab.unittest.TestCase
             testCase.verifyEqual(g.links.link5, 80e-3, 'AbsTol', 1e-15);
             testCase.verifyEqual(g.units.length, "m");
             testCase.verifyEqual(g.units.angle, "rad");
+            testCase.verifyEqual( ...
+                g.collision.parallelSharedClearance, 7.5e-3, ...
+                'AbsTol', 1e-15);
         end
 
         function parallelDimensionsUseEndpointNames(testCase)
@@ -103,6 +106,10 @@ classdef TestGeometry < matlab.unittest.TestCase
                 TestGeometry.withValue(g, {'collision', 'layerOffset'}, 42)
                 TestGeometry.withValue(g, {'collision', 'clearance'}, -1)
                 TestGeometry.withValue(g, {'collision', 'clearance'}, NaN)
+                TestGeometry.withValue(g, ...
+                    {'collision', 'parallelSharedClearance'}, -1)
+                TestGeometry.withValue(g, ...
+                    {'collision', 'parallelSharedClearance'}, NaN)
                 TestGeometry.withValue(g, ...
                     {'collision', 'exemptPairs'}, {'A', 'B'})
                 TestGeometry.withValue(g, ...

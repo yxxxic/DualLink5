@@ -32,6 +32,8 @@ geometry.analysis.phiRange = [0, pi/2];
 geometry.collision.radius = struct();
 geometry.collision.layerOffset = struct();
 geometry.collision.clearance = 0;
+% Minimum distance between Pbeta1-Pbeta2 and the shared link DE.
+geometry.collision.parallelSharedClearance = 7.5 * mm;
 geometry.collision.exemptPairs = strings(0, 2);
 
 geometry.units.length = "m";
