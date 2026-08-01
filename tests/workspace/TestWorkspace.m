@@ -377,6 +377,107 @@ classdef TestWorkspace < matlab.unittest.TestCase
             testCase.verifyEqual(singleSamples.y, doubleSamples.y);
         end
 
+        function samplerRejectsSparseTopologyModes(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            taskSpec = struct('kind', "pointG");
+            sparseQ = {[13.5, 84], [166.5, 72.75]};
+
+            for index = 1:numel(sparseQ)
+                grid.theta = deg2rad(sparseQ{index}(1));
+                grid.phi = deg2rad(sparseQ{index}(2));
+                samples = duallink5.workspace.sampleWorkspace( ...
+                    grid, geometry, taskSpec, struct());
+
+                testCase.verifyFalse(samples.validMask);
+                testCase.verifyEqual(samples.reasonMap, ...
+                    "ASSEMBLY_TOPOLOGY_MISMATCH");
+                testCase.verifyTrue(isnan(samples.x));
+                testCase.verifyTrue(isnan(samples.y));
+                testCase.verifyTrue(isnan(samples.orientation));
+                testCase.verifyTrue(isnan(samples.conditionNumber));
+            end
+        end
+
+        function samplerRetainsReferenceTopologyModes(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            taskSpec = struct('kind', "pointG");
+            compatibleQ = {[85, 30], [85, 31]};
+
+            for index = 1:numel(compatibleQ)
+                grid.theta = deg2rad(compatibleQ{index}(1));
+                grid.phi = deg2rad(compatibleQ{index}(2));
+                samples = duallink5.workspace.sampleWorkspace( ...
+                    grid, geometry, taskSpec, struct());
+
+                testCase.verifyTrue(samples.validMask);
+                testCase.verifyEqual(samples.reasonMap, "OK");
+                testCase.verifyTrue(isfinite(samples.x));
+                testCase.verifyTrue(isfinite(samples.y));
+                testCase.verifyTrue(isfinite(samples.conditionNumber));
+            end
+        end
+
+        function topologyProfileNoneRetainsSparsePose(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid.theta = deg2rad(13.5);
+            grid.phi = deg2rad(84);
+            options = struct( ...
+                'topologyProfile', "none", ...
+                'collisionProfile', "none");
+
+            samples = duallink5.workspace.sampleWorkspace( ...
+                grid, geometry, struct('kind', "pointG"), options);
+
+            testCase.verifyTrue(samples.validMask);
+            testCase.verifyEqual(samples.reasonMap, "OK");
+            testCase.verifyTrue(isfinite(samples.x));
+            testCase.verifyTrue(isfinite(samples.y));
+            testCase.verifyTrue(isfinite(samples.conditionNumber));
+        end
+
+        function samplerRejectsMalformedTopologyProfiles(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid = struct('theta', deg2rad(85), 'phi', deg2rad(30));
+            taskSpec = struct('kind', "pointG");
+            malformed = { ...
+                "invalid", ...
+                ["reference", "none"], ...
+                struct(), ...
+                string(missing)};
+
+            for index = 1:numel(malformed)
+                options = struct('topologyProfile', malformed{index});
+                testCase.verifyError( ...
+                    @() duallink5.workspace.sampleWorkspace( ...
+                    grid, geometry, taskSpec, options), ...
+                    'duallink5:workspace:InvalidWorkspaceOptions');
+            end
+        end
+
+        function invalidFiniteTopologyReferenceUsesStableError(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            geometry.analysis.referenceQ = [pi, pi];
+            grid = struct('theta', deg2rad(85), 'phi', deg2rad(30));
+
+            testCase.verifyError( ...
+                @() duallink5.workspace.sampleWorkspace( ...
+                grid, geometry, struct('kind', "pointG"), struct()), ...
+                'duallink5:workspace:InvalidTopologyReference');
+        end
+
+        function samplerStoresTopologyMetadata(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid = struct('theta', deg2rad(85), 'phi', deg2rad(30));
+
+            samples = duallink5.workspace.sampleWorkspace( ...
+                grid, geometry, struct('kind', "pointG"), struct());
+
+            testCase.verifyEqual( ...
+                samples.metadata.topologyProfile, "reference");
+            testCase.verifyEqual( ...
+                samples.metadata.referenceQ, geometry.analysis.referenceQ);
+        end
+
         function rectangleNormalizesIntegerCellSizes(testCase)
             mask = logical([1 1 0; 1 1 1; 1 1 1]);
 

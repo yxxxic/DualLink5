@@ -13,6 +13,16 @@ if ~isstruct(options) || ~isscalar(options)
     error('duallink5:workspace:InvalidWorkspaceOptions', ...
         'options must be a scalar struct.');
 end
+try
+    topologyProfile = string( ...
+        getOption(options, 'topologyProfile', "reference"));
+catch
+    invalidWorkspaceOptions();
+end
+if ~isscalar(topologyProfile) || ismissing(topologyProfile) || ...
+        ~ismember(topologyProfile, ["reference", "none"])
+    invalidWorkspaceOptions();
+end
 taskSpec = normalizeTaskSpec(taskSpec);
 
 [thetaGrid, phiGrid] = ndgrid( ...
@@ -27,17 +37,45 @@ samples.conditionNumber = nan(gridShape);
 samples.thetaGrid = thetaGrid;
 samples.phiGrid = phiGrid;
 
+referenceAssembly = [];
+if topologyProfile == "reference"
+    referenceQ = geometry.analysis.referenceQ;
+    referenceInput = struct('lower', referenceQ, 'upper', referenceQ);
+    referenceOptions = struct( ...
+        'mode', "ideal", ...
+        'branchMode', "fixed", ...
+        'branchId', geometry.assembly.defaultBranch);
+    referenceAssembly = duallink5.kinematics.forwardAssembly( ...
+        referenceInput, geometry, referenceOptions);
+    if ~referenceAssembly.quality.valid
+        error('duallink5:workspace:InvalidTopologyReference', ...
+            'geometry.analysis.referenceQ must form a valid assembly.');
+    end
+end
+
 for index = 1:numel(thetaGrid)
     qLogical = [thetaGrid(index), phiGrid(index)];
     q.lower = qLogical;
     q.upper = qLogical;
     assemblyOptions = options;
+    if isfield(assemblyOptions, 'topologyProfile')
+        assemblyOptions = rmfield(assemblyOptions, 'topologyProfile');
+    end
     assemblyOptions.mode = "ideal";
     assembly = duallink5.kinematics.forwardAssembly( ...
         q, geometry, assemblyOptions);
     samples.reasonMap(index) = assembly.quality.statusCode;
     if ~assembly.quality.valid
         continue
+    end
+
+    if topologyProfile == "reference"
+        topology = duallink5.validation.compareAssemblyTopology( ...
+            assembly, referenceAssembly, geometry);
+        if ~topology.compatible
+            samples.reasonMap(index) = topology.statusCode;
+            continue
+        end
     end
 
     jacobian = duallink5.kinematics.fiveBarJacobian( ...
@@ -59,6 +97,8 @@ end
 
 samples.metadata.units = geometry.units;
 samples.metadata.taskSpec = taskSpec;
+samples.metadata.topologyProfile = topologyProfile;
+samples.metadata.referenceQ = geometry.analysis.referenceQ;
 end
 
 function valid = isValidAngleVector(value)
@@ -127,4 +167,17 @@ end
 function invalidTaskSpec(message, varargin)
 error('duallink5:kinematics:InvalidTaskSpec', ...
     message, varargin{:});
+end
+
+function value = getOption(options, name, defaultValue)
+if isfield(options, name)
+    value = options.(name);
+else
+    value = defaultValue;
+end
+end
+
+function invalidWorkspaceOptions()
+error('duallink5:workspace:InvalidWorkspaceOptions', ...
+    'topologyProfile must be reference or none.');
 end
