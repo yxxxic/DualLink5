@@ -23,6 +23,13 @@ classdef TestGeometry < matlab.unittest.TestCase
                 'AbsTol', 1e-15);
         end
 
+        function topologyReferenceUsesApprovedPose(testCase)
+            g = duallink5.model.defaultGeometry();
+
+            testCase.verifyEqual(g.analysis.referenceQ, deg2rad([85, 30]), ...
+                'AbsTol', 1e-15);
+        end
+
         function parallelDimensionsUseEndpointNames(testCase)
             g = duallink5.model.defaultGeometry();
             L = g.parallel.lengths;
@@ -93,6 +100,19 @@ classdef TestGeometry < matlab.unittest.TestCase
                     {'analysis', 'phiRange'}, [0; 1])
                 TestGeometry.withValue(g, ...
                     {'analysis', 'phiRange'}, [0, Inf])
+                };
+
+            TestGeometry.verifyErrors(testCase, cases, ...
+                'duallink5:model:InvalidGeometry');
+        end
+
+        function malformedTopologyReferencesAreRejected(testCase)
+            g = duallink5.model.defaultGeometry();
+            cases = {
+                TestGeometry.withValue(g, {'analysis', 'referenceQ'}, [85, 30, 0])
+                TestGeometry.withValue(g, {'analysis', 'referenceQ'}, [85; 30])
+                TestGeometry.withValue(g, {'analysis', 'referenceQ'}, [85, NaN])
+                TestGeometry.withValue(g, {'analysis', 'referenceQ'}, "85,30")
                 };
 
             TestGeometry.verifyErrors(testCase, cases, ...

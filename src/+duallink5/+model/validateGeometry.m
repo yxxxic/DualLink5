@@ -34,6 +34,7 @@ validatePositiveFields(geometry.tolerance, ...
 requireStruct(geometry, 'analysis');
 validateRange(geometry.analysis, 'thetaRange');
 validateRange(geometry.analysis, 'phiRange');
+validateReferenceQ(geometry.analysis);
 
 requireStruct(geometry, 'collision');
 if ~isfield(geometry.collision, 'radius') || ...
@@ -110,6 +111,17 @@ value = parent.(name);
 if ~(isnumeric(value) && isreal(value) && isequal(size(value), [1, 2]) && ...
         all(isfinite(value)) && value(1) < value(2))
     fail('analysis.%s must be a finite increasing 1x2 vector.', name);
+end
+end
+
+function validateReferenceQ(analysis)
+if ~isfield(analysis, 'referenceQ')
+    fail('analysis.referenceQ is required.');
+end
+value = analysis.referenceQ;
+if ~(isnumeric(value) && isreal(value) && ...
+        isequal(size(value), [1, 2]) && all(isfinite(value)))
+    fail('analysis.referenceQ must be a finite real numeric 1x2 vector.');
 end
 end
 

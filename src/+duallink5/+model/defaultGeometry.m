@@ -28,6 +28,7 @@ geometry.tolerance.singularityCondition = 1e10;
 
 geometry.analysis.thetaRange = [0, pi];
 geometry.analysis.phiRange = [0, pi/2];
+geometry.analysis.referenceQ = deg2rad([85, 30]);
 
 geometry.collision.radius = struct();
 geometry.collision.layerOffset = struct();
