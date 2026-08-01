@@ -465,6 +465,25 @@ classdef TestWorkspace < matlab.unittest.TestCase
                 'duallink5:workspace:InvalidTopologyReference');
         end
 
+        function malformedTopologyGeometryUsesStableError(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            missingReference = geometry;
+            missingReference.analysis = rmfield( ...
+                missingReference.analysis, 'referenceQ');
+            missingAnalysis = rmfield(geometry, 'analysis');
+            missingAssembly = rmfield(geometry, 'assembly');
+            malformed = {missingReference, missingAnalysis, missingAssembly};
+            grid = struct('theta', deg2rad(85), 'phi', deg2rad(30));
+
+            for index = 1:numel(malformed)
+                testCase.verifyError( ...
+                    @() duallink5.workspace.sampleWorkspace( ...
+                    grid, malformed{index}, ...
+                    struct('kind', "pointG"), struct()), ...
+                    'duallink5:model:InvalidGeometry');
+            end
+        end
+
         function samplerStoresTopologyMetadata(testCase)
             geometry = duallink5.model.defaultGeometry();
             grid = struct('theta', deg2rad(85), 'phi', deg2rad(30));

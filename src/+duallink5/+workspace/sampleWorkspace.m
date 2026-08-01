@@ -24,6 +24,7 @@ if ~isscalar(topologyProfile) || ismissing(topologyProfile) || ...
     invalidWorkspaceOptions();
 end
 taskSpec = normalizeTaskSpec(taskSpec);
+geometry = duallink5.model.validateGeometry(geometry);
 
 [thetaGrid, phiGrid] = ndgrid( ...
     full(double(grid.theta)), full(double(grid.phi)));
@@ -37,7 +38,7 @@ samples.conditionNumber = nan(gridShape);
 samples.thetaGrid = thetaGrid;
 samples.phiGrid = phiGrid;
 
-referenceAssembly = [];
+topologyReference = [];
 if topologyProfile == "reference"
     referenceQ = geometry.analysis.referenceQ;
     referenceInput = struct('lower', referenceQ, 'upper', referenceQ);
@@ -51,6 +52,9 @@ if topologyProfile == "reference"
         error('duallink5:workspace:InvalidTopologyReference', ...
             'geometry.analysis.referenceQ must form a valid assembly.');
     end
+    topologyReference = ...
+        duallink5.validation.prepareAssemblyTopologyReference( ...
+        referenceAssembly, geometry.tolerance.length);
 end
 
 for index = 1:numel(thetaGrid)
@@ -70,8 +74,9 @@ for index = 1:numel(thetaGrid)
     end
 
     if topologyProfile == "reference"
-        topology = duallink5.validation.compareAssemblyTopology( ...
-            assembly, referenceAssembly, geometry);
+        topology = ...
+            duallink5.validation.compareAssemblyTopologyToReference( ...
+            assembly, topologyReference);
         if ~topology.compatible
             samples.reasonMap(index) = topology.statusCode;
             continue

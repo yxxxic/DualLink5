@@ -53,6 +53,26 @@ classdef TestAssemblyTopology < matlab.unittest.TestCase
             end
         end
 
+        function preparedReferenceCanBeReused(testCase)
+            reference = makeAssembly(testCase.Geometry, [85, 30]);
+            prepared = ...
+                duallink5.validation.prepareAssemblyTopologyReference( ...
+                reference, testCase.Geometry.tolerance.length);
+            candidateQ = {[85, 31], [13.5, 84], [166.5, 72.75]};
+
+            for index = 1:numel(candidateQ)
+                candidate = makeAssembly( ...
+                    testCase.Geometry, candidateQ{index});
+                cached = ...
+                    duallink5.validation.compareAssemblyTopologyToReference( ...
+                    candidate, prepared);
+                direct = duallink5.validation.compareAssemblyTopology( ...
+                    candidate, reference, testCase.Geometry);
+
+                testCase.verifyEqual(cached, direct);
+            end
+        end
+
         function malformedAssembliesAreRejected(testCase)
             reference = makeAssembly(testCase.Geometry, [85, 30]);
             badPoint = reference;
