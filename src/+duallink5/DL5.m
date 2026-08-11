@@ -107,6 +107,22 @@ classdef DL5 < handle
                 robot.Assembly, axesHandle, options);
         end
 
+        function result = singularity(robot, options)
+            if nargin < 2
+                options = struct();
+            end
+            result = duallink5.singularity.evaluate( ...
+                robot.Q, robot.Geometry, options);
+        end
+
+        function samples = sampleSingularitySpace(robot, grid, options)
+            if nargin < 3
+                options = struct();
+            end
+            samples = duallink5.singularity.sampleSpace( ...
+                grid, robot.Geometry, options);
+        end
+
         function value = get.QDegrees(robot)
             value = rad2deg(robot.Q);
         end

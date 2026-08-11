@@ -97,5 +97,38 @@ classdef TestDL5 < matlab.unittest.TestCase
                 @()robot.trySetPointG([1; 2; 3]), ...
                 'duallink5:facade:InvalidPointG');
         end
+
+        function singularityAnalysisDoesNotMutateCommittedState(testCase)
+            robot = duallink5.DL5();
+            previousQ = robot.Q;
+            previousAssembly = robot.Assembly;
+            previousPointG = robot.PointG;
+            previousValid = robot.IsValid;
+            previousStatus = robot.StatusCode;
+
+            result = robot.singularity(struct());
+
+            testCase.verifyEqual(result.mode, "ideal");
+            testCase.verifyEqual(result.logical.classification, "REGULAR");
+            testCase.verifyEqual(robot.Q, previousQ);
+            testCase.verifyEqual(robot.Assembly, previousAssembly);
+            testCase.verifyEqual(robot.PointG, previousPointG);
+            testCase.verifyEqual(robot.IsValid, previousValid);
+            testCase.verifyEqual(robot.StatusCode, previousStatus);
+        end
+
+        function singularitySamplingDoesNotMutateCommittedState(testCase)
+            robot = duallink5.DL5();
+            previousQ = robot.Q;
+            previousAssembly = robot.Assembly;
+            grid.theta = deg2rad([84, 85, 86]);
+            grid.phi = deg2rad([29, 30, 31]);
+
+            samples = robot.sampleSingularitySpace(grid, struct());
+
+            testCase.verifySize(samples.thetaGrid, [3, 3]);
+            testCase.verifyEqual(robot.Q, previousQ);
+            testCase.verifyEqual(robot.Assembly, previousAssembly);
+        end
     end
 end
