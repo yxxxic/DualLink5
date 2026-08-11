@@ -328,5 +328,136 @@ classdef TestSingularityVisualization < matlab.unittest.TestCase
                 handles.categoryImage.CData(column, row), 0);
             clear cleanup
         end
+
+        function taskPlotReturnsWorkspaceCurveAndSensitivityHandles(testCase)
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+            axesHandles(1).NextPlot = 'replacechildren';
+            axesHandles(2).NextPlot = 'replace';
+
+            handles = duallink5.viz.plotTaskSingularitySpace( ...
+                testCase.Samples, axesHandles);
+
+            required = {'theoretical', 'safe', 'typeITheta', 'typeIPhi', ...
+                'typeIIOuter', 'typeIIInner', 'typeIII', 'typeIIIStatus', ...
+                'orientation', 'orientationColorbar', 'legend'};
+            testCase.verifyTrue(all(isfield(handles, required)));
+            testCase.verifyTrue(isgraphics(handles.theoretical));
+            testCase.verifyTrue(isgraphics(handles.safe));
+            testCase.verifyTrue(isgraphics(handles.orientation));
+            testCase.verifyEqual(axesHandles(1).DataAspectRatio, [1, 1, 1]);
+            testCase.verifyEqual(axesHandles(2).DataAspectRatio, [1, 1, 1]);
+            testCase.verifyEqual(axesHandles(1).NextPlot, 'replacechildren');
+            testCase.verifyEqual(axesHandles(2).NextPlot, 'replace');
+            testCase.verifyEqual(axesHandles(1).XLabel.String, 'x_G [mm]');
+            testCase.verifyEqual(axesHandles(1).YLabel.String, 'y_G [mm]');
+            clear cleanup
+        end
+
+        function taskPlotRejectsMalformedCoordinates(testCase)
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+            malformed = testCase.Samples;
+            first = find(malformed.theoreticalReachableMask, 1);
+            malformed.x(first) = NaN;
+
+            testCase.verifyError( ...
+                @()duallink5.viz.plotTaskSingularitySpace( ...
+                malformed, axesHandles), ...
+                'duallink5:viz:InvalidSingularityPlotInput');
+            clear cleanup
+        end
+
+        function taskPlotRejectsMalformedCurveContract(testCase)
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+            malformed = testCase.Samples;
+            malformed.curves.typeITheta = struct( ...
+                'theta', [0, 1], 'phi', [0, 1], ...
+                'pointG', zeros(2, 2), ...
+                'adjacentMechanical', true(1, 1));
+
+            testCase.verifyError( ...
+                @()duallink5.viz.plotTaskSingularitySpace( ...
+                malformed, axesHandles), ...
+                'duallink5:viz:InvalidSingularityPlotInput');
+            clear cleanup
+        end
+
+        function taskPlotMapsExactTypeIIIPoint(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            geometry.links.link3 = 30e-3;
+            geometry.links.link4 = 32e-3;
+            geometry = duallink5.model.validateGeometry(geometry);
+            grid.theta = 0;
+            grid.phi = 0;
+            samples = duallink5.singularity.sampleSpace( ...
+                grid, geometry, struct('collisionProfile', "none", ...
+                'topologyProfile', "none"));
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+
+            handles = duallink5.viz.plotTaskSingularitySpace( ...
+                samples, axesHandles);
+
+            testCase.verifyNumElements(handles.typeIII.XData, 1);
+            testCase.verifyEqual(handles.typeIIIStatus.String, '');
+            clear cleanup
+        end
+
+        function taskPlotAnnotatesAbsentTypeIII(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid.theta = deg2rad(85);
+            grid.phi = deg2rad(30);
+            samples = duallink5.singularity.sampleSpace( ...
+                grid, geometry, struct('collisionProfile', "none", ...
+                'topologyProfile', "none"));
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+
+            handles = duallink5.viz.plotTaskSingularitySpace( ...
+                samples, axesHandles);
+
+            testCase.verifyEmpty(handles.typeIII.XData);
+            testCase.verifyEqual(handles.typeIIIStatus.String, ...
+                'No Type III locus in sampled range');
+            clear cleanup
+        end
+
+        function taskPlotDistinguishesTheoreticalAndMechanicalCurveStyles(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            grid.theta = deg2rad(43:1:48);
+            grid.phi = deg2rad(77:1:82);
+            samples = duallink5.singularity.sampleSpace( ...
+                grid, geometry, struct('collisionProfile', "none", ...
+                'topologyProfile', "none"));
+            figureHandle = figure('Visible', 'off');
+            cleanup = onCleanup(@()close(figureHandle));
+            layout = tiledlayout(figureHandle, 1, 2);
+            axesHandles = [nexttile(layout), nexttile(layout)];
+
+            handles = duallink5.viz.plotTaskSingularitySpace( ...
+                samples, axesHandles);
+
+            testCase.verifyNotEmpty(handles.typeITheta);
+            styles = string(arrayfun(@(item)item.LineStyle, ...
+                handles.typeITheta, 'UniformOutput', false));
+            testCase.verifyTrue(any(styles == "--"));
+            testCase.verifyTrue(any(styles == "-"));
+            legendText = string(handles.legend.String);
+            testCase.verifyTrue(any(legendText == "theoretical-only curve"));
+            testCase.verifyTrue(any(legendText == "mechanically adjacent curve"));
+            clear cleanup
+        end
     end
 end
