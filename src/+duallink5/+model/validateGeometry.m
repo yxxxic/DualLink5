@@ -35,6 +35,7 @@ requireStruct(geometry, 'analysis');
 validateRange(geometry.analysis, 'thetaRange');
 validateRange(geometry.analysis, 'phiRange');
 validateReferenceQ(geometry.analysis);
+validateCouplingWarningAngle(geometry.analysis);
 
 requireStruct(geometry, 'collision');
 if ~isfield(geometry.collision, 'radius') || ...
@@ -122,6 +123,18 @@ value = analysis.referenceQ;
 if ~(isnumeric(value) && isreal(value) && ...
         isequal(size(value), [1, 2]) && all(isfinite(value)))
     fail('analysis.referenceQ must be a finite real numeric 1x2 vector.');
+end
+end
+
+function validateCouplingWarningAngle(analysis)
+if ~isfield(analysis, 'couplingWarningAngle')
+    fail('analysis.couplingWarningAngle is required.');
+end
+value = analysis.couplingWarningAngle;
+if ~(isnumeric(value) && isreal(value) && isscalar(value) && ...
+        isfinite(value) && value > 0 && value < pi / 2)
+    fail(['analysis.couplingWarningAngle must be a finite scalar ', ...
+        'strictly between 0 and pi/2.']);
 end
 end
 

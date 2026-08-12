@@ -30,6 +30,27 @@ classdef TestGeometry < matlab.unittest.TestCase
                 'AbsTol', 1e-15);
         end
 
+        function couplingWarningAngleUsesApprovedValue(testCase)
+            geometry = duallink5.model.defaultGeometry();
+
+            testCase.verifyEqual( ...
+                geometry.analysis.couplingWarningAngle, ...
+                deg2rad(10), 'AbsTol', 1e-15);
+        end
+
+        function invalidCouplingWarningAnglesAreRejected(testCase)
+            geometry = duallink5.model.defaultGeometry();
+            invalid = {0, -1, pi / 2, Inf, NaN, [0.1, 0.2]};
+
+            for index = 1:numel(invalid)
+                candidate = geometry;
+                candidate.analysis.couplingWarningAngle = invalid{index};
+                testCase.verifyError( ...
+                    @()duallink5.model.validateGeometry(candidate), ...
+                    'duallink5:model:InvalidGeometry');
+            end
+        end
+
         function parallelDimensionsUseEndpointNames(testCase)
             g = duallink5.model.defaultGeometry();
             L = g.parallel.lengths;
