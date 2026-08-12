@@ -123,6 +123,23 @@ classdef DL5 < handle
                 grid, robot.Geometry, options);
         end
 
+        function result = couplingSingularity(robot, qLower, options)
+            if nargin < 3
+                options = struct();
+            end
+            result = duallink5.singularity.evaluateCoupling( ...
+                qLower, robot.Geometry, options);
+        end
+
+        function samples = sampleCouplingSingularitySpace( ...
+                robot, grid, options)
+            if nargin < 3
+                options = struct();
+            end
+            samples = duallink5.singularity.sampleCouplingSpace( ...
+                grid, robot.Geometry, options);
+        end
+
         function value = get.QDegrees(robot)
             value = rad2deg(robot.Q);
         end

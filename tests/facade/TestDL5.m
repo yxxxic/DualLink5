@@ -130,5 +130,48 @@ classdef TestDL5 < matlab.unittest.TestCase
             testCase.verifyEqual(robot.Q, previousQ);
             testCase.verifyEqual(robot.Assembly, previousAssembly);
         end
+
+        function couplingAnalysisDoesNotMutateCommittedState(testCase)
+            robot = duallink5.DL5();
+            previous = struct( ...
+                'Q', robot.Q, ...
+                'Assembly', robot.Assembly, ...
+                'PointG', robot.PointG, ...
+                'IsValid', robot.IsValid, ...
+                'StatusCode', robot.StatusCode);
+
+            result = robot.couplingSingularity( ...
+                deg2rad([85, 0]), ...
+                struct('collisionProfile', "none"));
+
+            testCase.verifyTrue(result.exactCouplingSingular);
+            testCase.verifyEqual(robot.Q, previous.Q);
+            testCase.verifyEqual(robot.Assembly, previous.Assembly);
+            testCase.verifyEqual(robot.PointG, previous.PointG);
+            testCase.verifyEqual(robot.IsValid, previous.IsValid);
+            testCase.verifyEqual(robot.StatusCode, previous.StatusCode);
+        end
+
+        function couplingSamplingDoesNotMutateCommittedState(testCase)
+            robot = duallink5.DL5();
+            previous = struct( ...
+                'Q', robot.Q, ...
+                'Assembly', robot.Assembly, ...
+                'PointG', robot.PointG, ...
+                'IsValid', robot.IsValid, ...
+                'StatusCode', robot.StatusCode);
+            grid.theta = deg2rad([84, 85, 86]);
+            grid.phi = deg2rad([-5, 0, 5]);
+
+            samples = robot.sampleCouplingSingularitySpace( ...
+                grid, struct('collisionProfile', "none"));
+
+            testCase.verifySize(samples.thetaGrid, [3, 3]);
+            testCase.verifyEqual(robot.Q, previous.Q);
+            testCase.verifyEqual(robot.Assembly, previous.Assembly);
+            testCase.verifyEqual(robot.PointG, previous.PointG);
+            testCase.verifyEqual(robot.IsValid, previous.IsValid);
+            testCase.verifyEqual(robot.StatusCode, previous.StatusCode);
+        end
     end
 end
