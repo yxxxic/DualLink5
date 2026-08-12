@@ -79,6 +79,29 @@ classdef TestCouplingVisualization < matlab.unittest.TestCase
             clear cleanup
         end
 
+        function representativeLabelsDoNotOverlapAtAnalysisSize(testCase)
+            [figureHandle, axesHandles, cleanup] = makeAnalysisAxes();
+            duallink5.viz.plotCouplingSingularitySpace( ...
+                testCase.Samples, axesHandles, struct());
+            drawnow;
+
+            minimumGapPixels = 6;
+            for index = 3:4
+                upperLabel = figureTextBounds( ...
+                    axesHandles(index).XLabel, figureHandle);
+                lowerTitle = figureTextBounds( ...
+                    axesHandles(index + 1).Title, figureHandle);
+                actualGap = upperLabel(2) - ...
+                    (lowerTitle(2) + lowerTitle(4));
+                testCase.verifyGreaterThanOrEqual( ...
+                    actualGap, minimumGapPixels, ...
+                    sprintf(['Representative axes %d and %d need ', ...
+                    'non-overlapping label/title extents.'], ...
+                    index, index + 1));
+            end
+            clear cleanup
+        end
+
         function usesVoronoiEdgesAndSafeColorLimits(testCase)
             samples = resample(testCase, [84, 85, 88], [-15, -7, 0, 10]);
             [~, axesHandles, cleanup] = makeAxes();
@@ -353,6 +376,35 @@ axesHandles = gobjects(1, 5);
 for index = 1:5
     axesHandles(index) = nexttile(layout);
 end
+end
+
+function [figureHandle, axesHandles, cleanup] = makeAnalysisAxes()
+figureHandle = figure('Visible', 'off', ...
+    'Units', 'pixels', 'Position', [40, 40, 1920, 1040]);
+cleanup = onCleanup(@()closeIfLive(figureHandle));
+positions = [ ...
+    0.055, 0.10, 0.39, 0.82; ...
+    0.50, 0.55, 0.20, 0.36; ...
+    0.76, 0.69, 0.21, 0.25; ...
+    0.76, 0.385, 0.21, 0.25; ...
+    0.76, 0.08, 0.21, 0.25];
+axesHandles = gobjects(1, 5);
+for index = 1:5
+    axesHandles(index) = axes(figureHandle, ...
+        'Position', positions(index, :));
+end
+end
+
+function bounds = figureTextBounds(textHandle, figureHandle)
+originalUnits = textHandle.Units;
+unitCleanup = onCleanup(@()set(textHandle, 'Units', originalUnits));
+textHandle.Units = 'pixels';
+bounds = textHandle.Extent;
+axesPosition = getpixelposition(textHandle.Parent, true);
+figurePosition = getpixelposition(figureHandle);
+bounds(1:2) = bounds(1:2) + axesPosition(1:2) - ...
+    figurePosition(1:2);
+clear unitCleanup
 end
 
 function closeIfLive(handle)

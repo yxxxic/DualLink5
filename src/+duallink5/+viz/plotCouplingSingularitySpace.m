@@ -134,7 +134,53 @@ for index = 3:5
     ylim(axesHandles(index), commonY);
     grid(axesHandles(index), 'on');
 end
+preventRepresentativeTextOverlap(axesHandles(3:5));
 clear cleanup
+end
+
+function preventRepresentativeTextOverlap(axesHandles)
+if any(arrayfun(@(item)isa(item.Parent, ...
+        'matlab.graphics.layout.TiledChartLayout'), axesHandles))
+    return
+end
+figureHandle = ancestor(axesHandles(1), 'figure');
+if isempty(figureHandle) || any(arrayfun( ...
+        @(item)ancestor(item, 'figure') ~= figureHandle, axesHandles))
+    return
+end
+drawnow;
+minimumGapPixels = 6;
+figurePosition = getpixelposition(figureHandle);
+for lowerIndex = 2:numel(axesHandles)
+    upperLabel = figureTextBounds( ...
+        axesHandles(lowerIndex - 1).XLabel, figureHandle);
+    lowerTitle = figureTextBounds( ...
+        axesHandles(lowerIndex).Title, figureHandle);
+    gap = upperLabel(2) - (lowerTitle(2) + lowerTitle(4));
+    deficit = minimumGapPixels - gap;
+    if deficit <= 0
+        continue
+    end
+    normalizedShift = deficit / figurePosition(4);
+    for moveIndex = lowerIndex:numel(axesHandles)
+        position = axesHandles(moveIndex).Position;
+        position(2) = position(2) - normalizedShift;
+        axesHandles(moveIndex).Position = position;
+    end
+    drawnow;
+end
+end
+
+function bounds = figureTextBounds(textHandle, figureHandle)
+originalUnits = textHandle.Units;
+unitCleanup = onCleanup(@()set(textHandle, 'Units', originalUnits));
+textHandle.Units = 'pixels';
+bounds = textHandle.Extent;
+axesPosition = getpixelposition(textHandle.Parent, true);
+figurePosition = getpixelposition(figureHandle);
+bounds(1:2) = bounds(1:2) + axesPosition(1:2) - ...
+    figurePosition(1:2);
+clear unitCleanup
 end
 
 function [axesHandles, options] = validateInputs( ...
