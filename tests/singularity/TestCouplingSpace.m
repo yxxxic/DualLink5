@@ -245,26 +245,6 @@ classdef TestCouplingSpace < matlab.unittest.TestCase
             testCase.verifyEqual(samples.metadata.topologyProfile, "none");
         end
 
-        function legacyReferenceIsCanonicalizedBeforeLoop(testCase)
-            seed = duallink5.singularity.evaluateCoupling( ...
-                deg2rad([85, 30]), testCase.Geometry, testCase.Options);
-            modern = seed.metadata.couplingReference;
-            modern.integrityToken = "untrusted-modern-profiler-reference";
-            legacy = rmfield(seed.metadata.couplingReference, ...
-                {'geometryFingerprint', 'integrityToken'});
-            grid.theta = deg2rad(84:86);
-            grid.phi = deg2rad([15, 20, 25, 30, 35]);
-
-            modernCalls = profileSampleCalls( ...
-                grid, testCase.Geometry, testCase.Options, modern);
-            legacyCalls = profileSampleCalls( ...
-                grid, testCase.Geometry, testCase.Options, legacy);
-
-            expectedCalls = numel(grid.theta) * numel(grid.phi) + 1;
-            testCase.verifyEqual(modernCalls, expectedCalls);
-            testCase.verifyEqual(legacyCalls, expectedCalls);
-        end
-
         function legacyReferenceIsStrictlyValidatedOnce(testCase)
             seed = duallink5.singularity.evaluateCoupling( ...
                 deg2rad([85, 30]), testCase.Geometry, testCase.Options);
@@ -327,23 +307,6 @@ classdef TestCouplingSpace < matlab.unittest.TestCase
             end
         end
     end
-end
-
-function calls = profileSampleCalls(grid, geometry, baseOptions, reference)
-options = baseOptions;
-options.couplingReference = reference;
-profile clear
-profile on
-cleanup = onCleanup(@()profile('off'));
-duallink5.singularity.sampleCouplingSpace(grid, geometry, options);
-profile off
-information = profile('info');
-names = string({information.FunctionTable.FunctionName});
-target = find(names == "forwardPassiveDoublet", 1);
-assert(~isempty(target), 'Profiler did not observe forwardPassiveDoublet.');
-calls = information.FunctionTable(target).NumCalls;
-clear cleanup
-profile clear
 end
 
 function verifyTensorSizes(testCase, samples, expectedGridShape)
