@@ -150,36 +150,75 @@ if isempty(figureHandle) || any(arrayfun( ...
 end
 drawnow;
 minimumGapPixels = 6;
-figurePosition = getpixelposition(figureHandle);
 for lowerIndex = 2:numel(axesHandles)
-    upperLabel = figureTextBounds( ...
-        axesHandles(lowerIndex - 1).XLabel, figureHandle);
-    lowerTitle = figureTextBounds( ...
-        axesHandles(lowerIndex).Title, figureHandle);
-    gap = upperLabel(2) - (lowerTitle(2) + lowerTitle(4));
-    deficit = minimumGapPixels - gap;
-    if deficit <= 0
-        continue
+    for attempt = 1:3
+        upperLabel = figureTextBounds( ...
+            axesHandles(lowerIndex - 1).XLabel);
+        lowerTitle = figureTextBounds( ...
+            axesHandles(lowerIndex).Title);
+        gap = upperLabel(2) - (lowerTitle(2) + lowerTitle(4));
+        deficit = minimumGapPixels - gap;
+        if deficit <= 0.01
+            break
+        end
+        shiftAxesPixels(axesHandles(lowerIndex:end), -deficit);
+        drawnow;
     end
-    normalizedShift = deficit / figurePosition(4);
-    for moveIndex = lowerIndex:numel(axesHandles)
-        position = axesHandles(moveIndex).Position;
-        position(2) = position(2) - normalizedShift;
-        axesHandles(moveIndex).Position = position;
-    end
+end
+keepRepresentativeAxesOnCanvas(axesHandles, figureHandle);
+end
+
+function keepRepresentativeAxesOnCanvas(axesHandles, figureHandle)
+canvasMarginPixels = 2;
+figurePosition = getpixelposition(figureHandle);
+[minimumBottom, maximumTop] = representativeVerticalBounds( ...
+    axesHandles);
+minimumShift = canvasMarginPixels - minimumBottom;
+maximumShift = figurePosition(4) - canvasMarginPixels - maximumTop;
+if minimumShift <= maximumShift
+    shift = min(max(0, minimumShift), maximumShift);
+else
+    shift = minimumShift;
+end
+if abs(shift) > 0.01
+    shiftAxesPixels(axesHandles, shift);
     drawnow;
 end
 end
 
-function bounds = figureTextBounds(textHandle, figureHandle)
+function [minimumBottom, maximumTop] = representativeVerticalBounds( ...
+        axesHandles)
+minimumBottom = Inf;
+maximumTop = -Inf;
+for index = 1:numel(axesHandles)
+    axesPosition = getpixelposition(axesHandles(index), true);
+    labelBounds = figureTextBounds( ...
+        axesHandles(index).XLabel);
+    titleBounds = figureTextBounds( ...
+        axesHandles(index).Title);
+    minimumBottom = min([minimumBottom, axesPosition(2), ...
+        labelBounds(2), titleBounds(2)]);
+    maximumTop = max([maximumTop, axesPosition(2) + axesPosition(4), ...
+        labelBounds(2) + labelBounds(4), ...
+        titleBounds(2) + titleBounds(4)]);
+end
+end
+
+function shiftAxesPixels(axesHandles, verticalShift)
+for index = 1:numel(axesHandles)
+    position = getpixelposition(axesHandles(index), true);
+    position(2) = position(2) + verticalShift;
+    setpixelposition(axesHandles(index), position, true);
+end
+end
+
+function bounds = figureTextBounds(textHandle)
 originalUnits = textHandle.Units;
 unitCleanup = onCleanup(@()set(textHandle, 'Units', originalUnits));
 textHandle.Units = 'pixels';
 bounds = textHandle.Extent;
 axesPosition = getpixelposition(textHandle.Parent, true);
-figurePosition = getpixelposition(figureHandle);
-bounds(1:2) = bounds(1:2) + axesPosition(1:2) - ...
-    figurePosition(1:2);
+bounds(1:2) = bounds(1:2) + axesPosition(1:2);
 clear unitCleanup
 end
 

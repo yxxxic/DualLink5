@@ -85,20 +85,35 @@ classdef TestCouplingVisualization < matlab.unittest.TestCase
                 testCase.Samples, axesHandles, struct());
             drawnow;
 
-            minimumGapPixels = 6;
-            for index = 3:4
-                upperLabel = figureTextBounds( ...
-                    axesHandles(index).XLabel, figureHandle);
-                lowerTitle = figureTextBounds( ...
-                    axesHandles(index + 1).Title, figureHandle);
-                actualGap = upperLabel(2) - ...
-                    (lowerTitle(2) + lowerTitle(4));
-                testCase.verifyGreaterThanOrEqual( ...
-                    actualGap, minimumGapPixels, ...
-                    sprintf(['Representative axes %d and %d need ', ...
-                    'non-overlapping label/title extents.'], ...
-                    index, index + 1));
-            end
+            verifyRepresentativeTextGaps( ...
+                testCase, figureHandle, axesHandles);
+            clear cleanup
+        end
+
+        function supportsPixelUnitRepresentativeAxes(testCase)
+            [figureHandle, axesHandles, cleanup] = makeAnalysisAxes();
+            set(axesHandles, 'Units', 'pixels');
+            duallink5.viz.plotCouplingSingularitySpace( ...
+                testCase.Samples, axesHandles, struct());
+            drawnow;
+
+            testCase.verifyEqual(string({axesHandles.Units}), ...
+                repmat("pixels", 1, 5));
+            verifyRepresentativeTextGaps( ...
+                testCase, figureHandle, axesHandles);
+            clear cleanup
+        end
+
+        function compactLayoutStaysInsideFigure(testCase)
+            [figureHandle, axesHandles, cleanup] = makeCompactAnalysisAxes();
+            duallink5.viz.plotCouplingSingularitySpace( ...
+                testCase.Samples, axesHandles, struct());
+            drawnow;
+
+            verifyRepresentativeTextGaps( ...
+                testCase, figureHandle, axesHandles);
+            verifyRepresentativeCanvasBounds( ...
+                testCase, figureHandle, axesHandles);
             clear cleanup
         end
 
@@ -380,7 +395,7 @@ end
 
 function [figureHandle, axesHandles, cleanup] = makeAnalysisAxes()
 figureHandle = figure('Visible', 'off', ...
-    'Units', 'pixels', 'Position', [40, 40, 1920, 1040]);
+    'Units', 'pixels', 'Position', [40, 40, 1600, 820]);
 cleanup = onCleanup(@()closeIfLive(figureHandle));
 positions = [ ...
     0.055, 0.10, 0.39, 0.82; ...
@@ -395,15 +410,55 @@ for index = 1:5
 end
 end
 
-function bounds = figureTextBounds(textHandle, figureHandle)
+function [figureHandle, axesHandles, cleanup] = makeCompactAnalysisAxes()
+[figureHandle, axesHandles, cleanup] = makeAnalysisAxes();
+axesHandles(3).Position = [0.76, 0.58, 0.21, 0.25];
+axesHandles(4).Position = [0.76, 0.30, 0.21, 0.25];
+axesHandles(5).Position = [0.76, 0.05, 0.21, 0.25];
+end
+
+function verifyRepresentativeTextGaps( ...
+        testCase, figureHandle, axesHandles)
+minimumGapPixels = 6;
+for index = 3:4
+    upperLabel = figureTextBounds( ...
+        axesHandles(index).XLabel);
+    lowerTitle = figureTextBounds( ...
+        axesHandles(index + 1).Title);
+    actualGap = upperLabel(2) - ...
+        (lowerTitle(2) + lowerTitle(4));
+    testCase.verifyGreaterThanOrEqual( ...
+        actualGap, minimumGapPixels, ...
+        sprintf(['Representative axes %d and %d need ', ...
+        'non-overlapping label/title extents.'], index, index + 1));
+end
+end
+
+function verifyRepresentativeCanvasBounds( ...
+        testCase, figureHandle, axesHandles)
+figurePosition = getpixelposition(figureHandle);
+for index = 3:5
+    axesPosition = getpixelposition(axesHandles(index), true);
+    labelBounds = figureTextBounds( ...
+        axesHandles(index).XLabel);
+    titleBounds = figureTextBounds( ...
+        axesHandles(index).Title);
+    testCase.verifyGreaterThanOrEqual(axesPosition(2), 1);
+    testCase.verifyLessThanOrEqual( ...
+        axesPosition(2) + axesPosition(4), figurePosition(4));
+    testCase.verifyGreaterThanOrEqual(labelBounds(2), 1);
+    testCase.verifyLessThanOrEqual( ...
+        titleBounds(2) + titleBounds(4), figurePosition(4));
+end
+end
+
+function bounds = figureTextBounds(textHandle)
 originalUnits = textHandle.Units;
 unitCleanup = onCleanup(@()set(textHandle, 'Units', originalUnits));
 textHandle.Units = 'pixels';
 bounds = textHandle.Extent;
 axesPosition = getpixelposition(textHandle.Parent, true);
-figurePosition = getpixelposition(figureHandle);
-bounds(1:2) = bounds(1:2) + axesPosition(1:2) - ...
-    figurePosition(1:2);
+bounds(1:2) = bounds(1:2) + axesPosition(1:2);
 clear unitCleanup
 end
 
