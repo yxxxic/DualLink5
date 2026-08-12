@@ -155,6 +155,27 @@ classdef TestCouplingSpace < matlab.unittest.TestCase
             testCase.verifyEqual(samples.metadata.displayAngleUnit, "deg");
         end
 
+        function metadataFingerprintBindsTheSampleGeometry(testCase)
+            grid.theta = deg2rad(85);
+            grid.phi = deg2rad([0, 30]);
+            baseline = duallink5.singularity.sampleCouplingSpace( ...
+                grid, testCase.Geometry, testCase.Options);
+            customGeometry = testCase.Geometry;
+            customGeometry.links.link1 = customGeometry.links.link1 + 1e-3;
+            customGeometry = duallink5.model.validateGeometry(customGeometry);
+            custom = duallink5.singularity.sampleCouplingSpace( ...
+                grid, customGeometry, testCase.Options);
+
+            testCase.verifyTrue(isfield( ...
+                baseline.metadata, 'geometryFingerprint'));
+            testCase.verifyEqual(baseline.metadata.geometryFingerprint, ...
+                baseline.metadata.couplingReference.geometryFingerprint);
+            testCase.verifyEqual(custom.metadata.geometryFingerprint, ...
+                custom.metadata.couplingReference.geometryFingerprint);
+            testCase.verifyNotEqual(custom.metadata.geometryFingerprint, ...
+                baseline.metadata.geometryFingerprint);
+        end
+
         function acceptsAndPropagatesCachedReferenceAndOptions(testCase)
             seedOptions = testCase.Options;
             seedOptions.referenceQ = deg2rad([86, 30]);
