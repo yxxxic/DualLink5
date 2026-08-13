@@ -8,7 +8,7 @@ projectRoot = fileparts(exampleDir);
 run(fullfile(projectRoot, 'startup.m'));
 
 geometry = duallink5.model.defaultGeometry();
-q.lower = deg2rad([85, 52.93]);
+q.lower = deg2rad([85, 30]);
 q.upper = q.lower;
 assembly = duallink5.kinematics.forwardAssembly(q, geometry);
 figureHandle = figure( ...
